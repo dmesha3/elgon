@@ -1,6 +1,6 @@
 SHELL := /bin/zsh
 
-.PHONY: help tidy fmt lint test itest bench bench-ci build run dev
+.PHONY: help tidy fmt lint test itest adapters-itest bench bench-ci build run dev
 
 help:
 	@echo "Available targets:"
@@ -9,6 +9,7 @@ help:
 	@echo "  make lint      - go vet ./..."
 	@echo "  make test      - unit tests"
 	@echo "  make itest     - integration tests (placeholder)"
+	@echo "  make adapters-itest - adapter integration tests (requires services)"
 	@echo "  make bench     - full benchmark suite"
 	@echo "  make bench-ci  - quick benchmark subset"
 	@echo "  make build     - build API and CLI binaries"
@@ -30,13 +31,16 @@ test:
 itest:
 	go test ./... -run Integration
 
+adapters-itest:
+	go test -tags "adapters integration" ./jobs/redisadapter ./jobs/kafkaadapter -v
+
 bench:
 	mkdir -p benchmarks/results
 	go test ./benchmarks/... -run=^$$ -bench=. -benchmem -count=3 | tee benchmarks/results/bench-full.out
 
 bench-ci:
 	mkdir -p benchmarks/results
-	go test ./benchmarks/router ./benchmarks/middleware -run=^$$ -bench=. -benchmem -count=1 | tee benchmarks/results/bench-ci.out
+	./scripts/bench_guard.sh
 
 build:
 	mkdir -p bin

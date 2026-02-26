@@ -78,11 +78,20 @@ func main() {
 A complete reference implementation is available at:
 
 - `examples/demo-app`
+- `examples/prod-api`
 
 Run it with:
 
 ```bash
 cd examples/demo-app
+go mod tidy
+go run ./cmd/api
+```
+
+Production sample:
+
+```bash
+cd examples/prod-api
 go mod tidy
 go run ./cmd/api
 ```
@@ -123,3 +132,14 @@ Build/test with adapters:
 go test -tags adapters ./...
 go build -tags adapters ./...
 ```
+
+## Docs
+
+- API stability: `docs/API_STABILITY.md`
+- Module docs:
+  - `docs/modules/auth.md`
+  - `docs/modules/openapi.md`
+  - `docs/modules/jobs.md`
+  - `docs/modules/migrate.md`
+- Installation: `INSTALL.md`
+- Releasing: `docs/RELEASING.md`

@@ -38,3 +38,12 @@ Track at least these metrics over time:
 - `allocs/op`
 
 Treat increasing `allocs/op` on router and middleware benchmarks as a regression signal.
+
+## CI Regression Gates
+
+- Absolute thresholds:
+  - `benchmarks/thresholds.tsv`
+- Compare benchmark thresholds:
+  - `benchmarks/compare_thresholds.tsv`
+- Guard script:
+  - `scripts/bench_guard.sh`

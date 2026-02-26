@@ -21,6 +21,9 @@ jobs:
       - name: Full benchmark run
         run: make bench
 
+      - name: Regression guard
+        run: ./scripts/bench_guard.sh
+
       - name: Upload benchmark output
         uses: actions/upload-artifact@v4
         with:

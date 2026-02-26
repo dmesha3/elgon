@@ -1,0 +1,3 @@
+# benchmark	max_ns_op	max_allocs_op	ref_benchmark	max_ratio
+BenchmarkCompareElgonStatic	200000	20	BenchmarkCompareStdHTTPStatic	8.00
+BenchmarkCompareStdHTTPStatic	120000	10	-	-

@@ -1,0 +1,50 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Test
+        run: go test ./...
+
+      - name: Build binaries
+        run: |
+          mkdir -p dist
+          GOOS=linux GOARCH=amd64 go build -o dist/elgon-api-linux-amd64 ./cmd/api
+          GOOS=linux GOARCH=amd64 go build -o dist/elgon-linux-amd64 ./cmd/elgon
+          GOOS=darwin GOARCH=arm64 go build -o dist/elgon-api-darwin-arm64 ./cmd/api
+          GOOS=darwin GOARCH=arm64 go build -o dist/elgon-darwin-arm64 ./cmd/elgon
+
+      - name: Extract release notes
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          awk -v ver="$VERSION" '
+            $0 ~ "^## \\["ver"\\]" {found=1}
+            found && $0 ~ "^## \\[" && $0 !~ "^## \\["ver"\\]" {exit}
+            found {print}
+          ' CHANGELOG.md > RELEASE_NOTES.md
+          echo "" >> RELEASE_NOTES.md
+          echo "## Install" >> RELEASE_NOTES.md
+          echo "go get github.com/meshackkazimoto/elgon@${GITHUB_REF_NAME}" >> RELEASE_NOTES.md
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          body_path: RELEASE_NOTES.md
+          files: dist/*
