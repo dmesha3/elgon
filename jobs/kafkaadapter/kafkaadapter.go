@@ -42,11 +42,11 @@ func NewProducer(cfg ProducerConfig) (*Producer, error) {
 	if len(cfg.Brokers) == 0 {
 		return nil, errors.New("kafkaadapter: at least one broker is required")
 	}
-	writer := &kafka.Writer{
-		Addr:     kafka.TCP(cfg.Brokers...),
+	writer := kafka.NewWriter(kafka.WriterConfig{
+		Brokers:  cfg.Brokers,
 		Balancer: &kafka.LeastBytes{},
 		Dialer:   cfg.Dialer,
-	}
+	})
 	return &Producer{writer: writer}, nil
 }
 

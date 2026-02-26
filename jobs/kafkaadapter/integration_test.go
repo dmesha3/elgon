@@ -9,6 +9,8 @@ import (
 	"os"
 	"testing"
 	"time"
+
+	"github.com/segmentio/kafka-go"
 )
 
 func TestKafkaAdapterIntegration(t *testing.T) {
@@ -18,6 +20,13 @@ func TestKafkaAdapterIntegration(t *testing.T) {
 	}
 	topic := fmt.Sprintf("elgon-itest-%d", time.Now().UnixNano())
 	groupID := fmt.Sprintf("elgon-itest-group-%d", time.Now().UnixNano())
+	checkCtx, checkCancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer checkCancel()
+	conn, err := (&kafka.Dialer{}).DialContext(checkCtx, "tcp", broker)
+	if err != nil {
+		t.Skipf("kafka unavailable at %s: %v", broker, err)
+	}
+	_ = conn.Close()
 
 	producer, err := NewProducer(ProducerConfig{Brokers: []string{broker}})
 	if err != nil {
