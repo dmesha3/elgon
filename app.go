@@ -8,6 +8,9 @@ import (
 	"os/signal"
 	"sync"
 	"syscall"
+
+	"github.com/meshackkazimoto/elgon/db"
+	"github.com/meshackkazimoto/elgon/orm"
 )
 
 // ErrorResponse is the default structured error payload.
@@ -25,15 +28,19 @@ type ErrorBody struct {
 
 // App is the main elgon application.
 type App struct {
-	cfg       Config
-	router    *router
-	globalMW  []Middleware
-	validator Validator
-	ctxPool   sync.Pool
-	server    *http.Server
-	named     map[string]string
-	routes    []RouteInfo
-	plugins   map[string]Plugin
+	cfg        Config
+	router     *router
+	globalMW   []Middleware
+	validator  Validator
+	ctxPool    sync.Pool
+	server     *http.Server
+	named      map[string]string
+	routes     []RouteInfo
+	plugins    map[string]Plugin
+	dataMu     sync.RWMutex
+	sqlDB      db.Adapter
+	ormDialect string
+	ormClient  *orm.Client
 }
 
 // RouteInfo describes a registered route method and path.

@@ -24,6 +24,7 @@ It provides production-focused defaults while keeping APIs explicit, modular, an
 - `openapi`: route-driven OpenAPI generation with schema/tag annotations
 - `auth`: JWT auth, RBAC middleware, OAuth2/OIDC helpers
 - `db`: adapter abstractions and SQL adapter helpers
+- `orm`: optional typed repositories over `db.Adapter`
 - `migrate`: SQL migration loading and engine (`up`, `down`, `status`)
 - `jobs`: in-memory queue, SQL distributed backend, Redis/Kafka queue interfaces
 
@@ -155,6 +156,35 @@ go test -tags adapters ./...
 go build -tags adapters ./...
 ```
 
+## Optional ORM
+
+```go
+adapter, _ := db.OpenSQLite(db.SQLiteConfig{})
+app := elgon.New(elgon.Config{Addr: ":8080"})
+app.SetSQL(adapter)
+app.SetORMDialect("sqlite")
+
+_, err := app.ORM().Table("users").Create(context.Background(), orm.Values{
+	"id":    "usr_1",
+	"email": "kazimoto17@proton.me",
+	"name":  "Meshack",
+})
+if err != nil {
+	log.Fatal(err)
+}
+
+user, err := app.ORM().Table("users").FindOne(context.Background(), orm.FindOptions{
+	Columns: []string{"id", "email", "name"},
+	Where:   orm.Where{"id": "usr_1"},
+})
+if err != nil {
+	log.Fatal(err)
+}
+_ = user["email"]
+
+_, _ = app.SQL().ExecContext(context.Background(), "UPDATE users SET name=? WHERE id=?", "M", "usr_1")
+```
+
 ## Docs
 
 - API stability: `docs/API_STABILITY.md`
@@ -163,5 +193,6 @@ go build -tags adapters ./...
   - `docs/modules/openapi.md`
   - `docs/modules/jobs.md`
   - `docs/modules/migrate.md`
+  - `docs/modules/orm.md`
 - Installation: `INSTALL.md`
 - Releasing: `docs/RELEASING.md`

@@ -20,6 +20,7 @@ import (
 	"github.com/meshackkazimoto/elgon/migrate"
 	"github.com/meshackkazimoto/elgon/observability"
 	"github.com/meshackkazimoto/elgon/openapi"
+	_ "github.com/meshackkazimoto/elgon/orm"
 	_ "modernc.org/sqlite"
 )
 
@@ -77,6 +78,15 @@ func main() {
 		metrics.Middleware(),
 	)
 	metrics.RegisterRoute(appServer, "/metrics")
+
+	// user, _ := appServer.ORM().Table("users").Create(context.Background(), orm.Values{
+	// 	"id": 1,
+	// 	"name": "Meshack",
+	// 	"email": "meshack@example.com",
+	// })
+
+
+	// fmt.Printf("created user: %+v\n", user)
 
 	appServer.GET("/healthz", h.Health)
 	appServer.POST("/auth/login", h.Login)

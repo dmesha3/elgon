@@ -86,6 +86,7 @@ func (h *Handlers) CreateTodo(c *elgon.Ctx) error {
 	if h.Queue != nil {
 		_ = h.Queue.Enqueue(c.Request.Context(), jobs.Message{Name: "todo.created", Payload: []byte(strconv.FormatInt(t.ID, 10))})
 	}
+
 	return c.JSON(201, t)
 }
 
