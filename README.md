@@ -27,6 +27,25 @@
   - OpenAPI 3.0.3 generation from registered routes
   - Endpoint registration for `/openapi.json` and `/docs` (Swagger UI)
 
+### Phase 3 (Platform Features)
+
+- `db` module:
+  - Adapter interfaces (`ExecContext`, `QueryContext`, `BeginTx`)
+  - `database/sql` wrapper and DSN helpers for Postgres/MySQL/SQLite
+- `migrate` module:
+  - SQL migration loader (`*.up.sql`, `*.down.sql`, optional dialect suffix)
+  - Migration engine with `up`, `down`, and `status`
+- `jobs` module:
+  - In-memory queue (`Enqueue`, `RunWorker`)
+  - Interval scheduler (`@every <duration>`/duration specs)
+- `elgon` CLI:
+  - `elgon new <app>`
+  - `elgon dev`
+  - `elgon test`
+  - `elgon bench`
+  - `elgon migrate up|down|status`
+  - `elgon openapi generate|validate`
+
 ## Install
 
 ```bash
@@ -91,6 +110,13 @@ func main() {
 go test ./...
 ```
 
+## CLI usage
+
+```bash
+go run ./cmd/elgon --help
+go run ./cmd/elgon migrate status -dir ./migrations -driver sqlite -dsn 'file::memory:?cache=shared'
+```
+
 ## Roadmap
 
-Next planned modules: auth, db, migrate, jobs, and CLI tooling.
+Next planned modules: auth and plugin system, plus benchmark suites and CI performance regression gates.
