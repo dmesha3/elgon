@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -32,32 +33,71 @@ func (r *fakeRows) Next() bool {
 func (r *fakeRows) Scan(dest ...any) error {
 	row := r.vals[r.i-1]
 	for i := range dest {
-		switch d := dest[i].(type) {
-		case *any:
-			*d = row[i]
-		default:
+		ptr, ok := dest[i].(*any)
+		if !ok {
 			return errors.New("unsupported scan destination")
 		}
+		*ptr = row[i]
 	}
 	return nil
 }
-func (r *fakeRows) Columns() ([]string, error) {
-	return r.cols, nil
+func (r *fakeRows) Columns() ([]string, error) { return r.cols, nil }
+
+type noColumnsRows struct {
+	vals [][]any
+	i    int
+}
+
+func (r *noColumnsRows) Close() error { return nil }
+func (r *noColumnsRows) Err() error   { return nil }
+func (r *noColumnsRows) Next() bool {
+	r.i++
+	return r.i <= len(r.vals)
+}
+func (r *noColumnsRows) Scan(dest ...any) error {
+	row := r.vals[r.i-1]
+	for i := range dest {
+		ptr := dest[i].(*any)
+		*ptr = row[i]
+	}
+	return nil
+}
+
+type fakeTx struct {
+	parent *fakeAdapter
+}
+
+func (tx *fakeTx) ExecContext(ctx context.Context, query string, args ...any) (db.Result, error) {
+	return tx.parent.ExecContext(ctx, query, args...)
+}
+func (tx *fakeTx) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
+	return tx.parent.QueryContext(ctx, query, args...)
+}
+func (tx *fakeTx) Commit() error {
+	tx.parent.commitCount++
+	return nil
+}
+func (tx *fakeTx) Rollback() error {
+	tx.parent.rollbackCount++
+	return nil
 }
 
 type fakeAdapter struct {
-	execQuery string
-	execArgs  []any
-	queryStmt string
-	queryArgs []any
-	rows      db.Rows
-	execErr   error
-	queryErr  error
+	execQueries   []string
+	execArgs      [][]any
+	queryStmts    []string
+	queryArgs     [][]any
+	rowsQueue     []db.Rows
+	execErr       error
+	queryErr      error
+	noTx          bool
+	commitCount   int
+	rollbackCount int
 }
 
 func (f *fakeAdapter) ExecContext(_ context.Context, query string, args ...any) (db.Result, error) {
-	f.execQuery = query
-	f.execArgs = args
+	f.execQueries = append(f.execQueries, query)
+	f.execArgs = append(f.execArgs, args)
 	if f.execErr != nil {
 		return nil, f.execErr
 	}
@@ -65,60 +105,52 @@ func (f *fakeAdapter) ExecContext(_ context.Context, query string, args ...any) 
 }
 
 func (f *fakeAdapter) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
-	f.queryStmt = query
-	f.queryArgs = args
+	f.queryStmts = append(f.queryStmts, query)
+	f.queryArgs = append(f.queryArgs, args)
 	if f.queryErr != nil {
 		return nil, f.queryErr
 	}
-	if f.rows == nil {
+	if len(f.rowsQueue) == 0 {
 		return &fakeRows{}, nil
 	}
-	return f.rows, nil
+	row := f.rowsQueue[0]
+	f.rowsQueue = f.rowsQueue[1:]
+	return row, nil
 }
 
-func (f *fakeAdapter) BeginTx(context.Context, *sql.TxOptions) (db.Tx, error) { return nil, nil }
-func (f *fakeAdapter) PingContext(context.Context) error                      { return nil }
-func (f *fakeAdapter) Close() error                                           { return nil }
-
-func TestTableCreateBuildsInsert(t *testing.T) {
-	adapter := &fakeAdapter{}
-	table := New(adapter).Table("users")
-
-	_, err := table.Create(context.Background(), Values{
-		"name":  "Meshack",
-		"email": "meshack@example.com",
-	})
-	if err != nil {
-		t.Fatalf("create failed: %v", err)
+func (f *fakeAdapter) BeginTx(context.Context, *sql.TxOptions) (db.Tx, error) {
+	if f.noTx {
+		return nil, nil
 	}
-
-	want := "INSERT INTO users (email, name) VALUES (?, ?)"
-	if adapter.execQuery != want {
-		t.Fatalf("unexpected query\nwant: %s\ngot:  %s", want, adapter.execQuery)
-	}
-	if len(adapter.execArgs) != 2 {
-		t.Fatalf("expected 2 args, got %d", len(adapter.execArgs))
-	}
+	return &fakeTx{parent: f}, nil
 }
+func (f *fakeAdapter) PingContext(context.Context) error { return nil }
+func (f *fakeAdapter) Close() error                      { return nil }
 
-func TestTableFindManyMapsRows(t *testing.T) {
+func TestFindManyFirstAndFirstOrThrow(t *testing.T) {
 	adapter := &fakeAdapter{
-		rows: &fakeRows{
-			cols: []string{"id", "email", "name"},
-			vals: [][]any{
-				{"u1", []byte("a@b.com"), "Alpha"},
-				{"u2", "c@d.com", "Beta"},
+		rowsQueue: []db.Rows{
+			&fakeRows{
+				cols: []string{"id", "email"},
+				vals: [][]any{{"u1", []byte("a@b.com")}, {"u2", "b@b.com"}},
+			},
+			&fakeRows{
+				cols: []string{"id", "email"},
+				vals: [][]any{{"u1", "a@b.com"}},
+			},
+			&fakeRows{
+				cols: []string{"id"},
+				vals: nil,
 			},
 		},
 	}
 	table := New(adapter).Table("users")
 
 	rows, err := table.FindMany(context.Background(), FindOptions{
-		Columns: []string{"id", "email", "name"},
-		Where:   Where{"name": "Alpha"},
+		Columns: []string{"id", "email"},
+		Where:   Where{"email": "a@b.com"},
 		OrderBy: []OrderBy{{Column: "id"}},
 		Limit:   10,
-		Offset:  0,
 	})
 	if err != nil {
 		t.Fatalf("find many failed: %v", err)
@@ -127,87 +159,290 @@ func TestTableFindManyMapsRows(t *testing.T) {
 		t.Fatalf("expected 2 rows, got %d", len(rows))
 	}
 	if rows[0]["email"] != "a@b.com" {
-		t.Fatalf("expected byte slice email normalization, got %#v", rows[0]["email"])
+		t.Fatalf("expected []byte normalization, got %#v", rows[0]["email"])
 	}
-	if !strings.Contains(adapter.queryStmt, "ORDER BY id ASC") {
-		t.Fatalf("expected order by in query, got %s", adapter.queryStmt)
+	if !strings.Contains(adapter.queryStmts[0], "ORDER BY id ASC") {
+		t.Fatalf("expected order clause, got %s", adapter.queryStmts[0])
 	}
-}
 
-func TestTableFindOne(t *testing.T) {
-	adapter := &fakeAdapter{
-		rows: &fakeRows{
-			cols: []string{"id", "name"},
-			vals: [][]any{{"u1", "Alpha"}},
-		},
-	}
-	table := New(adapter).Table("users")
-
-	row, err := table.FindOne(context.Background(), FindOptions{
-		Columns: []string{"id", "name"},
-		Where:   Where{"id": "u1"},
+	first, err := table.FindFirst(context.Background(), FindOptions{
+		Columns: []string{"id", "email"},
+		Where:   Where{"email": "a@b.com"},
 	})
 	if err != nil {
-		t.Fatalf("find one failed: %v", err)
+		t.Fatalf("find first failed: %v", err)
 	}
-	if row["id"] != "u1" {
-		t.Fatalf("unexpected row: %#v", row)
+	if first["id"] != "u1" {
+		t.Fatalf("unexpected first row: %#v", first)
 	}
-	if !strings.Contains(adapter.queryStmt, "LIMIT ?") {
-		t.Fatalf("expected limit 1 query, got %s", adapter.queryStmt)
+	if !strings.Contains(adapter.queryStmts[1], "LIMIT ?") {
+		t.Fatalf("expected limit clause, got %s", adapter.queryStmts[1])
 	}
-}
 
-func TestTableFindOneNotFound(t *testing.T) {
-	adapter := &fakeAdapter{rows: &fakeRows{cols: []string{"id"}, vals: nil}}
-	table := New(adapter).Table("users")
-
-	_, err := table.FindOne(context.Background(), FindOptions{Columns: []string{"id"}})
+	_, err = table.FindFirstOrThrow(context.Background(), FindOptions{Columns: []string{"id"}})
 	if !errors.Is(err, ErrNotFound) {
 		t.Fatalf("expected ErrNotFound, got %v", err)
 	}
 }
 
-func TestTableUpdateAndDelete(t *testing.T) {
+func TestFindUniqueMethods(t *testing.T) {
+	adapter := &fakeAdapter{
+		rowsQueue: []db.Rows{
+			&fakeRows{cols: []string{"id"}, vals: [][]any{{"u1"}}},
+			&fakeRows{cols: []string{"id"}, vals: nil},
+			&fakeRows{cols: []string{"id"}, vals: [][]any{{"u1"}, {"u2"}}},
+			&fakeRows{cols: []string{"id"}, vals: nil},
+		},
+	}
+	table := New(adapter).Table("users")
+
+	row, err := table.FindUnique(context.Background(), Where{"id": "u1"}, "id")
+	if err != nil {
+		t.Fatalf("find unique failed: %v", err)
+	}
+	if row["id"] != "u1" {
+		t.Fatalf("unexpected unique row: %#v", row)
+	}
+
+	row, err = table.FindUnique(context.Background(), Where{"id": "missing"}, "id")
+	if err != nil {
+		t.Fatalf("find unique missing failed: %v", err)
+	}
+	if row != nil {
+		t.Fatalf("expected nil row for missing unique, got %#v", row)
+	}
+
+	_, err = table.FindUnique(context.Background(), Where{"email": "dup@x.com"}, "id")
+	if !errors.Is(err, ErrNonUnique) {
+		t.Fatalf("expected ErrNonUnique, got %v", err)
+	}
+
+	_, err = table.FindUniqueOrThrow(context.Background(), Where{"id": "missing"}, "id")
+	if !errors.Is(err, ErrNotFound) {
+		t.Fatalf("expected ErrNotFound, got %v", err)
+	}
+}
+
+func TestCreateCreateManyAndCreateManyAndReturn(t *testing.T) {
 	adapter := &fakeAdapter{}
 	table := New(adapter).Table("users")
 
-	affected, err := table.Update(context.Background(), Where{"id": "u1"}, Values{"name": "New"})
+	if _, err := table.Create(context.Background(), Values{"id": "u1", "email": "a@b.com"}); err != nil {
+		t.Fatalf("create failed: %v", err)
+	}
+	if got := adapter.execQueries[0]; got != "INSERT INTO users (email, id) VALUES (?, ?)" {
+		t.Fatalf("unexpected create query: %s", got)
+	}
+
+	count, err := table.CreateMany(context.Background(), []Values{
+		{"id": "u2", "email": "b@b.com"},
+		{"id": "u3", "email": "c@b.com"},
+	})
+	if err != nil {
+		t.Fatalf("create many failed: %v", err)
+	}
+	if count != 2 {
+		t.Fatalf("expected create many count 2, got %d", count)
+	}
+	if adapter.commitCount != 1 {
+		t.Fatalf("expected tx commit for create many")
+	}
+
+	pgAdapter := &fakeAdapter{
+		rowsQueue: []db.Rows{
+			&fakeRows{cols: []string{"id", "email"}, vals: [][]any{{"u4", "d@b.com"}}},
+			&fakeRows{cols: []string{"id", "email"}, vals: [][]any{{"u5", "e@b.com"}}},
+		},
+	}
+	pgTable := NewWithConfig(pgAdapter, Config{Dialect: "postgres"}).Table("users")
+	created, err := pgTable.CreateManyAndReturn(context.Background(), []Values{
+		{"id": "u4", "email": "d@b.com"},
+		{"id": "u5", "email": "e@b.com"},
+	}, []string{"id", "email"})
+	if err != nil {
+		t.Fatalf("create many and return failed: %v", err)
+	}
+	if len(created) != 2 {
+		t.Fatalf("expected 2 returned rows, got %d", len(created))
+	}
+	if !strings.Contains(pgAdapter.queryStmts[0], "RETURNING id, email") {
+		t.Fatalf("expected returning clause, got %s", pgAdapter.queryStmts[0])
+	}
+}
+
+func TestUpdateDeleteAndManyVariants(t *testing.T) {
+	adapter := &fakeAdapter{
+		rowsQueue: []db.Rows{
+			&fakeRows{
+				cols: []string{"id", "name"},
+				vals: [][]any{{"u1", "Updated"}, {"u2", "Updated"}},
+			},
+		},
+	}
+	table := NewWithConfig(adapter, Config{Dialect: "postgres"}).Table("users")
+
+	count, err := table.Update(context.Background(), Where{"id": "u1"}, Values{"name": "New"})
 	if err != nil {
 		t.Fatalf("update failed: %v", err)
 	}
-	if affected != 2 {
-		t.Fatalf("expected affected rows from fake result, got %d", affected)
+	if count != 2 {
+		t.Fatalf("expected fake affected count 2, got %d", count)
 	}
-	if !strings.Contains(adapter.execQuery, "UPDATE users SET") {
-		t.Fatalf("expected update query, got %s", adapter.execQuery)
+	if !strings.HasPrefix(adapter.execQueries[0], "UPDATE users SET") {
+		t.Fatalf("expected update query, got %s", adapter.execQueries[0])
 	}
 
-	affected, err = table.Delete(context.Background(), Where{"id": "u1"})
+	count, err = table.UpdateMany(context.Background(), Where{"id": "u1"}, Values{"name": "N2"})
+	if err != nil {
+		t.Fatalf("update many failed: %v", err)
+	}
+	if count != 2 {
+		t.Fatalf("expected update many count 2, got %d", count)
+	}
+
+	rows, err := table.UpdateManyAndReturn(context.Background(), Where{"id": "u1"}, Values{"name": "Updated"}, []string{"id", "name"})
+	if err != nil {
+		t.Fatalf("update many and return failed: %v", err)
+	}
+	if len(rows) != 2 {
+		t.Fatalf("expected 2 updated rows, got %d", len(rows))
+	}
+	if !strings.Contains(adapter.queryStmts[0], "RETURNING id, name") {
+		t.Fatalf("expected returning clause, got %s", adapter.queryStmts[0])
+	}
+
+	count, err = table.Delete(context.Background(), Where{"id": "u1"})
 	if err != nil {
 		t.Fatalf("delete failed: %v", err)
 	}
-	if affected != 2 {
-		t.Fatalf("expected affected rows from fake result, got %d", affected)
+	if count != 2 {
+		t.Fatalf("expected delete count 2, got %d", count)
 	}
-	if !strings.HasPrefix(adapter.execQuery, "DELETE FROM users") {
-		t.Fatalf("expected delete query, got %s", adapter.execQuery)
+
+	count, err = table.DeleteMany(context.Background(), Where{"id": "u2"})
+	if err != nil {
+		t.Fatalf("delete many failed: %v", err)
+	}
+	if count != 2 {
+		t.Fatalf("expected delete many count 2, got %d", count)
 	}
 }
 
-func TestTableRejectsUnsafeWrites(t *testing.T) {
-	table := New(&fakeAdapter{}).Table("users")
-
-	if _, err := table.Update(context.Background(), nil, Values{"name": "N"}); !errors.Is(err, ErrInvalidInput) {
-		t.Fatalf("expected invalid input for empty update where, got %v", err)
+func TestUpsert(t *testing.T) {
+	existingAdapter := &fakeAdapter{
+		rowsQueue: []db.Rows{
+			&fakeRows{cols: []string{"id"}, vals: [][]any{{"u1"}}},
+			&fakeRows{cols: []string{"id", "name"}, vals: [][]any{{"u1", "Updated"}}},
+		},
 	}
-	if _, err := table.Delete(context.Background(), nil); !errors.Is(err, ErrInvalidInput) {
-		t.Fatalf("expected invalid input for empty delete where, got %v", err)
+	table := New(existingAdapter).Table("users")
+	row, err := table.Upsert(
+		context.Background(),
+		Where{"id": "u1"},
+		Values{"name": "Created"},
+		Values{"name": "Updated"},
+	)
+	if err != nil {
+		t.Fatalf("upsert update-path failed: %v", err)
+	}
+	if row["name"] != "Updated" {
+		t.Fatalf("unexpected upsert updated row: %#v", row)
+	}
+	if len(existingAdapter.execQueries) == 0 || !strings.Contains(existingAdapter.execQueries[0], "UPDATE users SET") {
+		t.Fatalf("expected update in upsert update path, got %#v", existingAdapter.execQueries)
+	}
+
+	createAdapter := &fakeAdapter{
+		rowsQueue: []db.Rows{
+			&fakeRows{cols: []string{"id"}, vals: nil},
+			&fakeRows{cols: []string{"id", "name"}, vals: [][]any{{"u2", "Created"}}},
+		},
+	}
+	table = New(createAdapter).Table("users")
+	row, err = table.Upsert(
+		context.Background(),
+		Where{"id": "u2"},
+		Values{"name": "Created"},
+		Values{"name": "Updated"},
+	)
+	if err != nil {
+		t.Fatalf("upsert create-path failed: %v", err)
+	}
+	if row["name"] != "Created" {
+		t.Fatalf("unexpected upsert created row: %#v", row)
+	}
+	if len(createAdapter.execQueries) == 0 || !strings.Contains(createAdapter.execQueries[0], "INSERT INTO users") {
+		t.Fatalf("expected insert in upsert create path, got %#v", createAdapter.execQueries)
 	}
 }
 
-func TestTablePostgresPlaceholders(t *testing.T) {
-	adapter := &fakeAdapter{}
+func TestFallbackPathsAndValidation(t *testing.T) {
+	adapter := &fakeAdapter{noTx: true}
+	table := New(adapter).Table("users")
+
+	count, err := table.CreateMany(context.Background(), []Values{{"id": "u1"}, {"id": "u2"}})
+	if err != nil {
+		t.Fatalf("create many fallback failed: %v", err)
+	}
+	if count != 2 {
+		t.Fatalf("expected create many fallback count 2, got %d", count)
+	}
+
+	mysqlAdapter := &fakeAdapter{
+		rowsQueue: []db.Rows{
+			&noColumnsRows{
+				vals: [][]any{{"u1", "Alpha"}},
+			},
+			&noColumnsRows{
+				vals: [][]any{{"u1", "Alpha"}},
+			},
+		},
+	}
+	mysql := NewWithConfig(mysqlAdapter, Config{Dialect: "mysql"}).Table("users")
+	created, err := mysql.CreateManyAndReturn(context.Background(), []Values{{"id": "u1", "name": "Alpha"}}, []string{"id", "name"})
+	if err != nil {
+		t.Fatalf("fallback create many and return failed: %v", err)
+	}
+	if len(created) != 1 || created[0]["id"] != "u1" {
+		t.Fatalf("unexpected fallback create many return: %#v", created)
+	}
+
+	updated, err := mysql.UpdateManyAndReturn(context.Background(), Where{"id": "u1"}, Values{"name": "Beta"}, []string{"id", "name"})
+	if err != nil {
+		t.Fatalf("fallback update many and return failed: %v", err)
+	}
+	if len(updated) != 1 || updated[0]["name"] != "Beta" {
+		t.Fatalf("unexpected fallback update many return: %#v", updated)
+	}
+
+	_, err = table.FindUnique(context.Background(), nil, "id")
+	if !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("expected invalid input for empty unique where, got %v", err)
+	}
+	_, err = table.Update(context.Background(), nil, Values{"name": "x"})
+	if !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("expected invalid input for update with empty where, got %v", err)
+	}
+	_, err = table.Delete(context.Background(), nil)
+	if !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("expected invalid input for delete with empty where, got %v", err)
+	}
+
+	_, err = New(table.db).Table("users;drop").FindMany(context.Background(), FindOptions{Columns: []string{"id"}})
+	if !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("expected invalid identifier error, got %v", err)
+	}
+}
+
+func TestPostgresPlaceholder(t *testing.T) {
+	adapter := &fakeAdapter{
+		rowsQueue: []db.Rows{
+			&fakeRows{
+				cols: []string{"id"},
+				vals: [][]any{{"u1"}},
+			},
+		},
+	}
 	table := NewWithConfig(adapter, Config{Dialect: "postgres"}).Table("users")
 
 	_, _ = table.FindMany(context.Background(), FindOptions{
@@ -215,14 +450,66 @@ func TestTablePostgresPlaceholders(t *testing.T) {
 		Where:   Where{"id": "u1"},
 		Limit:   1,
 	})
-	if !strings.Contains(adapter.queryStmt, "$1") {
-		t.Fatalf("expected postgres placeholder in query, got %q", adapter.queryStmt)
+	if len(adapter.queryStmts) == 0 || !strings.Contains(adapter.queryStmts[0], "$1") {
+		t.Fatalf("expected postgres placeholder in query, got %q", strings.Join(adapter.queryStmts, " | "))
 	}
 }
 
-func TestTableRejectsInvalidIdentifier(t *testing.T) {
-	table := New(&fakeAdapter{}).Table("users; DROP TABLE users")
-	if _, err := table.FindMany(context.Background(), FindOptions{Columns: []string{"id"}}); !errors.Is(err, ErrInvalidInput) {
-		t.Fatalf("expected invalid identifier error, got %v", err)
+func TestScanRecordsErrorsWithoutColumns(t *testing.T) {
+	adapter := &fakeAdapter{
+		rowsQueue: []db.Rows{&noColumnsRows{vals: [][]any{{"u1"}}}},
+	}
+	table := New(adapter).Table("users")
+	_, err := table.FindMany(context.Background(), FindOptions{})
+	if err == nil || !strings.Contains(err.Error(), "does not expose columns") {
+		t.Fatalf("expected columns exposure error, got %v", err)
+	}
+}
+
+func TestReturningClauseValidation(t *testing.T) {
+	_, err := buildReturningClause([]string{"id", "bad-column"})
+	if !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("expected invalid returning column, got %v", err)
+	}
+}
+
+func TestProjectRecordsValidation(t *testing.T) {
+	_, err := projectRecords([]Record{{"id": "u1"}}, []string{"id", "bad-column"})
+	if !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("expected invalid projection column, got %v", err)
+	}
+}
+
+func TestCreateAndReturnNoRow(t *testing.T) {
+	adapter := &fakeAdapter{
+		rowsQueue: []db.Rows{
+			&fakeRows{cols: []string{"id"}, vals: nil},
+		},
+	}
+	table := NewWithConfig(adapter, Config{Dialect: "postgres"}).Table("users")
+	_, err := table.CreateManyAndReturn(context.Background(), []Values{{"id": "u1"}}, []string{"id"})
+	if !errors.Is(err, ErrNotFound) {
+		t.Fatalf("expected ErrNotFound for no returning row, got %v", err)
+	}
+}
+
+func TestBuildQueriesDeterministicColumns(t *testing.T) {
+	adapter := &fakeAdapter{}
+	table := New(adapter).Table("users")
+	_, err := table.Create(context.Background(), Values{"z": 1, "a": 2})
+	if err != nil {
+		t.Fatalf("create failed: %v", err)
+	}
+	if got := adapter.execQueries[0]; got != "INSERT INTO users (a, z) VALUES (?, ?)" {
+		t.Fatalf("unexpected deterministic query order: %s", got)
+	}
+}
+
+func TestQueryErrorPassthrough(t *testing.T) {
+	adapter := &fakeAdapter{queryErr: fmt.Errorf("boom")}
+	table := New(adapter).Table("users")
+	_, err := table.FindMany(context.Background(), FindOptions{Columns: []string{"id"}})
+	if err == nil || !strings.Contains(err.Error(), "boom") {
+		t.Fatalf("expected passthrough query error, got %v", err)
 	}
 }
