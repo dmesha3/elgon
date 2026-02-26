@@ -14,7 +14,7 @@ func TestBuildAndServe(t *testing.T) {
 	app.GET("/users/:id", func(c *elgon.Ctx) error { return c.Text(http.StatusOK, "ok") })
 
 	gen := NewGenerator("Test API", "1.0.0")
-	gen.AddOperation(http.MethodGet, "/users/:id", Operation{Summary: "Get user"})
+	gen.AddOperation(http.MethodGet, "/users/:id", Operation{Summary: "Get user", RequiresAuth: true})
 	gen.Register(app, "/openapi.json", "/docs")
 
 	rr := httptest.NewRecorder()
@@ -34,6 +34,22 @@ func TestBuildAndServe(t *testing.T) {
 	}
 	if _, ok := paths["/users/{id}"]; !ok {
 		t.Fatalf("expected templated path, got %#v", paths)
+	}
+	userPath := paths["/users/{id}"].(map[string]any)
+	getOp := userPath["get"].(map[string]any)
+	if _, ok := getOp["security"]; !ok {
+		t.Fatalf("expected operation security for bearer auth: %#v", getOp)
+	}
+	components, ok := doc["components"].(map[string]any)
+	if !ok {
+		t.Fatalf("components missing: %#v", doc)
+	}
+	securitySchemes, ok := components["securitySchemes"].(map[string]any)
+	if !ok {
+		t.Fatalf("securitySchemes missing: %#v", components)
+	}
+	if _, ok := securitySchemes["BearerAuth"]; !ok {
+		t.Fatalf("BearerAuth scheme missing: %#v", securitySchemes)
 	}
 
 	rrDocs := httptest.NewRecorder()

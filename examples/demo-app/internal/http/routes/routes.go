@@ -21,6 +21,7 @@ func Register(app *elgon.App, api *handlers.API, jwt *auth.JWTManager) {
 
 	docs := openapi.NewGenerator("elgon demo API", elgon.Version)
 	docs.Description = "Demo app showing how to build production-style APIs with elgon."
+	docs.EnableBearerAuth()
 	docs.AddOperation(http.MethodPost, "/auth/login", openapi.Operation{
 		Summary:       "Login",
 		Description:   "Returns a JWT for demo usage.",
@@ -36,12 +37,14 @@ func Register(app *elgon.App, api *handlers.API, jwt *auth.JWTManager) {
 		Summary:       "List todos",
 		OperationID:   "listTodos",
 		Tags:          []string{"todos"},
+		RequiresAuth:  true,
 		ResponseModel: []domain.Todo{},
 	})
 	docs.AddOperation(http.MethodPost, "/api/v1/todos", openapi.Operation{
 		Summary:       "Create todo",
 		OperationID:   "createTodo",
 		Tags:          []string{"todos"},
+		RequiresAuth:  true,
 		RequestModel:  domain.CreateTodoRequest{},
 		ResponseModel: domain.Todo{},
 		ResponseCode:  201,
@@ -53,6 +56,7 @@ func Register(app *elgon.App, api *handlers.API, jwt *auth.JWTManager) {
 		Summary:       "Mark done",
 		OperationID:   "markTodoDone",
 		Tags:          []string{"todos"},
+		RequiresAuth:  true,
 		ResponseModel: domain.Todo{},
 	})
 	docs.Register(app, "/openapi.json", "/docs")

@@ -17,6 +17,7 @@ type Operation struct {
 	Description     string   `json:"description,omitempty"`
 	OperationID     string   `json:"operationId,omitempty"`
 	Tags            []string `json:"tags,omitempty"`
+	RequiresAuth    bool
 	Deprecated      bool
 	RequestModel    any
 	ResponseModel   any
@@ -31,6 +32,7 @@ type Generator struct {
 	Version     string
 	Description string
 	ServerURLs  []string
+	bearerAuth  bool
 	opts        map[string]Operation
 	schemas     map[string]any
 }
@@ -49,6 +51,11 @@ func NewGenerator(title, version string) *Generator {
 		opts:       make(map[string]Operation),
 		schemas:    make(map[string]any),
 	}
+}
+
+// EnableBearerAuth adds HTTP bearer token auth scheme to the generated document.
+func (g *Generator) EnableBearerAuth() {
+	g.bearerAuth = true
 }
 
 // AddOperation attaches metadata to method/path pairs.
@@ -93,6 +100,7 @@ func (g *Generator) Register(app *elgon.App, jsonPath, docsPath string) {
 func (g *Generator) Build(app *elgon.App) map[string]any {
 	routes := app.Routes()
 	paths := make(map[string]map[string]any)
+	usesBearerAuth := g.bearerAuth
 	for _, r := range routes {
 		tpl := toOpenAPIPath(r.Path)
 		if paths[tpl] == nil {
@@ -115,6 +123,12 @@ func (g *Generator) Build(app *elgon.App) map[string]any {
 		}
 		if op.Deprecated {
 			entry["deprecated"] = true
+		}
+		if op.RequiresAuth {
+			entry["security"] = []map[string][]string{
+				{"BearerAuth": []string{}},
+			}
+			usesBearerAuth = true
 		}
 		if params := pathParams(tpl); len(params) > 0 {
 			entry["parameters"] = params
@@ -185,6 +199,15 @@ func (g *Generator) Build(app *elgon.App) map[string]any {
 	}
 
 	components := map[string]any{"schemas": g.schemas}
+	if usesBearerAuth {
+		components["securitySchemes"] = map[string]any{
+			"BearerAuth": map[string]any{
+				"type":         "http",
+				"scheme":       "bearer",
+				"bearerFormat": "JWT",
+			},
+		}
+	}
 
 	return map[string]any{
 		"openapi": "3.0.3",
