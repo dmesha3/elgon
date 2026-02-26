@@ -61,6 +61,22 @@
   - App plugin lifecycle via `RegisterPlugins`
   - Duplicate plugin protection and plugin registry access (`Plugins`)
 
+### Current Additions (DB/OpenAPI/Jobs)
+
+- DB driver integration tests:
+  - Env-driven integration test in `db/integration_test.go`
+  - Run with:
+    - `ELGON_DB_TEST_DRIVER=sqlite`
+    - `ELGON_DB_TEST_DSN='file::memory:?cache=shared'`
+    - `go test ./db -run Integration`
+- Richer OpenAPI schema generation:
+  - Struct-to-schema generation with nested models and `json` tags
+  - Operation request/response model references in `components.schemas`
+  - Files: `openapi/openapi.go`, `openapi/schema.go`
+- Multi-node distributed jobs backend:
+  - SQL-backed queue backend with optimistic claiming and retry scheduling
+  - File: `jobs/distributed.go`
+
 ## Install
 
 ```bash
@@ -135,3 +151,4 @@ go run ./cmd/elgon migrate status -dir ./migrations -driver sqlite -dsn 'file::m
 ## Roadmap
 
 Next planned modules: DB driver integration tests, richer OpenAPI schema generation, and multi-node distributed job backends.
+Completed above. Next planned modules: OAuth2/OIDC providers, advanced OpenAPI schema annotations/examples, and Redis/Kafka distributed queue backends.

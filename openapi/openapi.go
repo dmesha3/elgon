@@ -2,7 +2,9 @@ package openapi
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"reflect"
 	"sort"
 	"strings"
 
@@ -11,10 +13,13 @@ import (
 
 // Operation contains OpenAPI operation metadata.
 type Operation struct {
-	Summary     string   `json:"summary,omitempty"`
-	Description string   `json:"description,omitempty"`
-	OperationID string   `json:"operationId,omitempty"`
-	Tags        []string `json:"tags,omitempty"`
+	Summary       string   `json:"summary,omitempty"`
+	Description   string   `json:"description,omitempty"`
+	OperationID   string   `json:"operationId,omitempty"`
+	Tags          []string `json:"tags,omitempty"`
+	RequestModel  any
+	ResponseModel any
+	ResponseCode  int
 }
 
 // Generator builds OpenAPI documents from registered app routes.
@@ -23,7 +28,8 @@ type Generator struct {
 	Version     string
 	Description string
 	ServerURLs  []string
-	ops         map[string]Operation
+	opts        map[string]Operation
+	schemas     map[string]any
 }
 
 func NewGenerator(title, version string) *Generator {
@@ -37,13 +43,25 @@ func NewGenerator(title, version string) *Generator {
 		Title:      title,
 		Version:    version,
 		ServerURLs: []string{"/"},
-		ops:        make(map[string]Operation),
+		opts:       make(map[string]Operation),
+		schemas:    make(map[string]any),
 	}
 }
 
 // AddOperation attaches metadata to method/path pairs.
 func (g *Generator) AddOperation(method, path string, op Operation) {
-	g.ops[key(method, path)] = op
+	g.opts[key(method, path)] = op
+}
+
+// RegisterSchema registers a model schema under a specific component name.
+func (g *Generator) RegisterSchema(name string, model any) {
+	if name == "" || model == nil {
+		return
+	}
+	if _, ok := g.schemas[name]; ok {
+		return
+	}
+	g.schemas[name] = buildSchema(reflect.TypeOf(model), g.schemas)
 }
 
 // Register mounts /openapi.json and /docs endpoints.
@@ -78,7 +96,7 @@ func (g *Generator) Build(app *elgon.App) map[string]any {
 			paths[tpl] = make(map[string]any)
 		}
 		method := strings.ToLower(r.Method)
-		op := g.ops[key(r.Method, r.Path)]
+		op := g.opts[key(r.Method, r.Path)]
 		entry := map[string]any{}
 		if op.Summary != "" {
 			entry["summary"] = op.Summary
@@ -92,13 +110,45 @@ func (g *Generator) Build(app *elgon.App) map[string]any {
 		if len(op.Tags) > 0 {
 			entry["tags"] = op.Tags
 		}
-		params := pathParams(tpl)
-		if len(params) > 0 {
+		if params := pathParams(tpl); len(params) > 0 {
 			entry["parameters"] = params
 		}
-		entry["responses"] = map[string]any{
-			"200": map[string]any{"description": "OK"},
+
+		if op.RequestModel != nil {
+			name := g.ensureSchema(op.RequestModel)
+			if name != "" {
+				entry["requestBody"] = map[string]any{
+					"required": true,
+					"content": map[string]any{
+						"application/json": map[string]any{
+							"schema": map[string]any{"$ref": "#/components/schemas/" + name},
+						},
+					},
+				}
+			}
 		}
+
+		respCode := op.ResponseCode
+		if respCode == 0 {
+			respCode = 200
+		}
+		responses := map[string]any{
+			fmt.Sprintf("%d", respCode): map[string]any{"description": http.StatusText(respCode)},
+		}
+		if op.ResponseModel != nil {
+			name := g.ensureSchema(op.ResponseModel)
+			if name != "" {
+				responses[fmt.Sprintf("%d", respCode)] = map[string]any{
+					"description": http.StatusText(respCode),
+					"content": map[string]any{
+						"application/json": map[string]any{
+							"schema": map[string]any{"$ref": "#/components/schemas/" + name},
+						},
+					},
+				}
+			}
+		}
+		entry["responses"] = responses
 		paths[tpl][method] = entry
 	}
 
@@ -120,6 +170,8 @@ func (g *Generator) Build(app *elgon.App) map[string]any {
 		orderedPaths[k] = paths[k]
 	}
 
+	components := map[string]any{"schemas": g.schemas}
+
 	return map[string]any{
 		"openapi": "3.0.3",
 		"info": map[string]string{
@@ -127,9 +179,24 @@ func (g *Generator) Build(app *elgon.App) map[string]any {
 			"version":     g.Version,
 			"description": g.Description,
 		},
-		"servers": serverEntries,
-		"paths":   orderedPaths,
+		"servers":    serverEntries,
+		"paths":      orderedPaths,
+		"components": components,
 	}
+}
+
+func (g *Generator) ensureSchema(model any) string {
+	t := reflect.TypeOf(model)
+	for t.Kind() == reflect.Pointer {
+		t = t.Elem()
+	}
+	if t.Name() == "" {
+		return ""
+	}
+	if _, ok := g.schemas[t.Name()]; !ok {
+		g.schemas[t.Name()] = buildSchema(t, g.schemas)
+	}
+	return t.Name()
 }
 
 func key(method, path string) string {
