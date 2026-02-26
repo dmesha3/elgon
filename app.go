@@ -33,6 +33,7 @@ type App struct {
 	server    *http.Server
 	named     map[string]string
 	routes    []RouteInfo
+	plugins   map[string]Plugin
 }
 
 // RouteInfo describes a registered route method and path.
@@ -44,9 +45,10 @@ type RouteInfo struct {
 func New(cfg Config) *App {
 	cfg = cfg.withDefaults()
 	a := &App{
-		cfg:    cfg,
-		router: newRouter(),
-		named:  make(map[string]string),
+		cfg:     cfg,
+		router:  newRouter(),
+		named:   make(map[string]string),
+		plugins: make(map[string]Plugin),
 	}
 	a.ctxPool.New = func() any {
 		return &Ctx{values: make(map[string]any, 4), params: make([]routeParam, 0, 4)}
@@ -198,5 +200,35 @@ func chain(h HandlerFunc, mw ...Middleware) HandlerFunc {
 func (a *App) Routes() []RouteInfo {
 	out := make([]RouteInfo, len(a.routes))
 	copy(out, a.routes)
+	return out
+}
+
+// RegisterPlugins initializes and registers one or more plugins.
+func (a *App) RegisterPlugins(plugins ...Plugin) error {
+	for _, p := range plugins {
+		if p == nil {
+			continue
+		}
+		name := p.Name()
+		if name == "" {
+			return ErrInternal("plugin name must not be empty")
+		}
+		if _, exists := a.plugins[name]; exists {
+			return ErrConflict("plugin already registered: " + name)
+		}
+		if err := p.Init(a); err != nil {
+			return err
+		}
+		a.plugins[name] = p
+	}
+	return nil
+}
+
+// Plugins returns the list of registered plugin names.
+func (a *App) Plugins() []string {
+	out := make([]string, 0, len(a.plugins))
+	for name := range a.plugins {
+		out = append(out, name)
+	}
 	return out
 }

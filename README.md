@@ -47,8 +47,19 @@
   - `elgon openapi generate|validate`
 - Benchmarks and CI guardrails:
   - `benchmarks/` module for router, middleware, json, and e2e benchmarks
+  - `benchmarks/compare` for elgon vs stdlib baseline microbenchmarks
   - `scripts/bench_guard.sh` threshold checks for PR smoke benchmarks
   - GitHub Actions workflows for CI smoke and nightly full benchmarks
+
+### Phase 4 (Auth and Plugins)
+
+- `auth` module:
+  - HS256 JWT signing and verification
+  - Authentication middleware (`auth.Auth`)
+  - RBAC guards (`auth.RequireRole`, `auth.RequirePerm`)
+- Plugin system:
+  - App plugin lifecycle via `RegisterPlugins`
+  - Duplicate plugin protection and plugin registry access (`Plugins`)
 
 ## Install
 
@@ -123,4 +134,4 @@ go run ./cmd/elgon migrate status -dir ./migrations -driver sqlite -dsn 'file::m
 
 ## Roadmap
 
-Next planned modules: auth and plugin system, plus benchmark suites and CI performance regression gates.
+Next planned modules: DB driver integration tests, richer OpenAPI schema generation, and multi-node distributed job backends.
