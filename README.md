@@ -106,6 +106,28 @@ go run ./cmd/elgon --help
 
 Available command groups include `new`, `dev`, `test`, `bench`, `migrate`, and `openapi`.
 
+## Developer Run Modes
+
+Standard development run:
+
+```bash
+make dev
+```
+
+Hot reload (file watcher) with `air`:
+
+```bash
+make dev HOT_RELOAD=1
+```
+
+`elgon dev --hot-reload` will use local `air` when available, and otherwise falls back to `go run github.com/air-verse/air@latest`.
+
+You can also use the CLI directly:
+
+```bash
+go run ./cmd/elgon dev --hot-reload
+```
+
 ## Testing and Benchmarks
 
 ```bash

@@ -14,7 +14,7 @@ help:
 	@echo "  make bench-ci  - quick benchmark subset"
 	@echo "  make build     - build API and CLI binaries"
 	@echo "  make run       - run API server"
-	@echo "  make dev       - run API server (dev mode)"
+	@echo "  make dev       - run API server (set HOT_RELOAD=1 to use air watcher)"
 
 tidy:
 	go mod tidy
@@ -51,4 +51,8 @@ run:
 	go run ./cmd/api
 
 dev:
+ifeq ($(HOT_RELOAD),1)
+	go run ./cmd/elgon dev --hot-reload
+else
 	go run ./cmd/api
+endif

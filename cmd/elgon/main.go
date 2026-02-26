@@ -113,8 +113,19 @@ func writeIfMissing(path, content string) error {
 }
 
 func cmdDev(args []string) error {
-	if len(args) > 0 {
-		return errors.New("usage: elgon dev")
+	fs := flag.NewFlagSet("dev", flag.ContinueOnError)
+	hotReload := fs.Bool("hot-reload", false, "enable hot reload with air")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if fs.NArg() > 0 {
+		return errors.New("usage: elgon dev [--hot-reload]")
+	}
+	if *hotReload {
+		if _, err := exec.LookPath("air"); err != nil {
+			return runCmd("go", "run", "github.com/air-verse/air@latest", "-c", ".air.toml")
+		}
+		return runCmd("air", "-c", ".air.toml")
 	}
 	return runCmd("go", "run", "./cmd/api")
 }

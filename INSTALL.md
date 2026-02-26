@@ -21,6 +21,16 @@ go build -o ./bin/elgon ./cmd/elgon
 ./bin/elgon --help
 ```
 
+## Optional hot reload (developer experience)
+
+Run dev mode with reload:
+
+```bash
+make dev HOT_RELOAD=1
+```
+
+If `air` is not installed locally, the CLI falls back to `go run github.com/air-verse/air@latest`.
+
 ## Optional adapters
 
 To include Redis/Kafka concrete adapters:
