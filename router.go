@@ -6,7 +6,9 @@ import (
 )
 
 type routeEntry struct {
-	h HandlerFunc
+	h      HandlerFunc
+	method string
+	path   string
 }
 
 type node struct {
@@ -69,10 +71,10 @@ func (r *router) add(method, path string, h HandlerFunc) {
 			}
 		}
 	}
-	curr.route = &routeEntry{h: h}
+	curr.route = &routeEntry{h: h, method: method, path: path}
 }
 
-func (r *router) find(method, path string, params []routeParam) (HandlerFunc, []routeParam, bool) {
+func (r *router) find(method, path string, params []routeParam) (*routeEntry, []routeParam, bool) {
 	root, ok := r.methodRoots[method]
 	if !ok {
 		return nil, params[:0], false
@@ -83,7 +85,7 @@ func (r *router) find(method, path string, params []routeParam) (HandlerFunc, []
 		if curr.route == nil {
 			return nil, params, false
 		}
-		return curr.route.h, params, true
+		return curr.route, params, true
 	}
 
 	parts := splitPath(path)
@@ -109,7 +111,7 @@ func (r *router) find(method, path string, params []routeParam) (HandlerFunc, []
 	if curr.route == nil {
 		return nil, params, false
 	}
-	return curr.route.h, params, true
+	return curr.route, params, true
 }
 
 func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -117,15 +119,16 @@ func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx.reset(w, r)
 	ctx.app = a
 
-	h, params, ok := a.router.find(r.Method, r.URL.Path, ctx.params)
+	entry, params, ok := a.router.find(r.Method, r.URL.Path, ctx.params)
 	ctx.params = params
 	if !ok {
 		a.writeError(ctx, ErrNotFound("route not found"))
 		a.ctxPool.Put(ctx)
 		return
 	}
+	ctx.routePattern = entry.path
 
-	if err := h(ctx); err != nil {
+	if err := entry.h(ctx); err != nil {
 		a.writeError(ctx, err)
 	}
 	a.ctxPool.Put(ctx)

@@ -32,6 +32,13 @@ type App struct {
 	ctxPool   sync.Pool
 	server    *http.Server
 	named     map[string]string
+	routes    []RouteInfo
+}
+
+// RouteInfo describes a registered route method and path.
+type RouteInfo struct {
+	Method string
+	Path   string
 }
 
 func New(cfg Config) *App {
@@ -93,6 +100,7 @@ func (a *App) route(method, path string, h HandlerFunc, mw ...Middleware) {
 	allMW = append(allMW, a.globalMW...)
 	allMW = append(allMW, mw...)
 	a.router.add(method, full, chain(h, allMW...))
+	a.routes = append(a.routes, RouteInfo{Method: method, Path: full})
 }
 
 func (a *App) GET(path string, h HandlerFunc, mw ...Middleware) {
@@ -184,4 +192,11 @@ func chain(h HandlerFunc, mw ...Middleware) HandlerFunc {
 		h = mw[i](h)
 	}
 	return h
+}
+
+// Routes returns a copy of the registered route table.
+func (a *App) Routes() []RouteInfo {
+	out := make([]RouteInfo, len(a.routes))
+	copy(out, a.routes)
+	return out
 }

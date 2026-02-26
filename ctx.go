@@ -11,15 +11,17 @@ type Ctx struct {
 	Writer  http.ResponseWriter
 	Request *http.Request
 
-	params []routeParam
-	values map[string]any
-	app    *App
+	params       []routeParam
+	values       map[string]any
+	app          *App
+	routePattern string
 }
 
 func (c *Ctx) reset(w http.ResponseWriter, r *http.Request) {
 	c.Writer = w
 	c.Request = r
 	c.params = c.params[:0]
+	c.routePattern = ""
 	clear(c.values)
 }
 
@@ -38,6 +40,10 @@ func (c *Ctx) Query(name string) string {
 
 func (c *Ctx) Header(name string) string {
 	return c.Request.Header.Get(name)
+}
+
+func (c *Ctx) RoutePattern() string {
+	return c.routePattern
 }
 
 func (c *Ctx) Set(key string, value any) {
