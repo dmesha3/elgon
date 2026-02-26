@@ -1,83 +1,33 @@
 # elgon
 
-`elgon` is a performance-focused, API-first Go web framework designed to stay close to `net/http` while offering production defaults.
+`elgon` is a performance-oriented, API-first Go web framework built on top of `net/http`.
+It provides production-focused defaults while keeping APIs explicit, modular, and easy to test.
 
-## Current Scope
+## Why elgon
 
-### Phase 1 (Core)
-
-- `App` lifecycle with graceful shutdown
-- High-performance path router (static, param, wildcard)
-- Group routing and per-route middleware
-- `Ctx` helpers: params, query, headers, JSON binding, JSON/text response
+- Fast routing with static, param, and wildcard path matching
+- Low-overhead middleware pipeline
 - Centralized typed error handling
-- Built-in health endpoints: `/health`, `/ready`, `/live`
-- Middleware package with `Recover`, `RequestID`, `Logger`, `SecureHeaders`, `BodyLimit`, `CORS`
+- Built-in health and metrics support
+- OpenAPI generation and Swagger UI serving
+- Config loading from environment and JSON files
+- Auth support (JWT, RBAC guards, OAuth2/OIDC helpers)
+- Database adapters, migrations, and background jobs
+- CLI commands for common development workflows
 
-### Phase 2 (Production Batteries)
+## Core Packages
 
-- `config` module:
-  - Strict env loading with tags (`env`, `default`, `required`)
-  - Strict JSON file loading (`DisallowUnknownFields`)
-- `observability` module:
-  - Metrics collector middleware (request count + duration)
-  - Prometheus text endpoint registration (`/metrics`)
-  - Optional tracing middleware interface (`Tracer`/`Span`)
-- `openapi` module:
-  - OpenAPI 3.0.3 generation from registered routes
-  - Endpoint registration for `/openapi.json` and `/docs` (Swagger UI)
+- `elgon`: app lifecycle, router, context, handler/middleware contracts
+- `middleware`: recover, request ID, logger, CORS, body limit, secure headers
+- `config`: strict typed config loading (`env`, `default`, `required` tags)
+- `observability`: metrics middleware/endpoint and tracing interfaces
+- `openapi`: route-driven OpenAPI generation with schema/tag annotations
+- `auth`: JWT auth, RBAC middleware, OAuth2/OIDC helpers
+- `db`: adapter abstractions and SQL adapter helpers
+- `migrate`: SQL migration loading and engine (`up`, `down`, `status`)
+- `jobs`: in-memory queue, SQL distributed backend, Redis/Kafka queue interfaces
 
-### Phase 3 (Platform Features)
-
-- `db` module:
-  - Adapter interfaces (`ExecContext`, `QueryContext`, `BeginTx`)
-  - `database/sql` wrapper and DSN helpers for Postgres/MySQL/SQLite
-- `migrate` module:
-  - SQL migration loader (`*.up.sql`, `*.down.sql`, optional dialect suffix)
-  - Migration engine with `up`, `down`, and `status`
-- `jobs` module:
-  - In-memory queue (`Enqueue`, `RunWorker`)
-  - Interval scheduler (`@every <duration>`/duration specs)
-- `elgon` CLI:
-  - `elgon new <app>`
-  - `elgon dev`
-  - `elgon test`
-  - `elgon bench`
-  - `elgon migrate up|down|status`
-  - `elgon openapi generate|validate`
-- Benchmarks and CI guardrails:
-  - `benchmarks/` module for router, middleware, json, and e2e benchmarks
-  - `benchmarks/compare` for elgon vs stdlib baseline microbenchmarks
-  - `scripts/bench_guard.sh` threshold checks for PR smoke benchmarks
-  - GitHub Actions workflows for CI smoke and nightly full benchmarks
-
-### Phase 4 (Auth and Plugins)
-
-- `auth` module:
-  - HS256 JWT signing and verification
-  - Authentication middleware (`auth.Auth`)
-  - RBAC guards (`auth.RequireRole`, `auth.RequirePerm`)
-- Plugin system:
-  - App plugin lifecycle via `RegisterPlugins`
-  - Duplicate plugin protection and plugin registry access (`Plugins`)
-
-### Current Additions (DB/OpenAPI/Jobs)
-
-- DB driver integration tests:
-  - Env-driven integration test in `db/integration_test.go`
-  - Run with:
-    - `ELGON_DB_TEST_DRIVER=sqlite`
-    - `ELGON_DB_TEST_DSN='file::memory:?cache=shared'`
-    - `go test ./db -run Integration`
-- Richer OpenAPI schema generation:
-  - Struct-to-schema generation with nested models and `json` tags
-  - Operation request/response model references in `components.schemas`
-  - Files: `openapi/openapi.go`, `openapi/schema.go`
-- Multi-node distributed jobs backend:
-  - SQL-backed queue backend with optimistic claiming and retry scheduling
-  - File: `jobs/distributed.go`
-
-## Install
+## Installation
 
 ```bash
 go get github.com/meshackkazimoto/elgon
@@ -89,79 +39,87 @@ go get github.com/meshackkazimoto/elgon
 package main
 
 import (
-    "log"
-    "log/slog"
-    "os"
+	"log"
+	"log/slog"
+	"os"
 
-    "github.com/meshackkazimoto/elgon"
-    "github.com/meshackkazimoto/elgon/config"
-    "github.com/meshackkazimoto/elgon/middleware"
-    "github.com/meshackkazimoto/elgon/openapi"
-    "github.com/meshackkazimoto/elgon/observability"
+	"github.com/meshackkazimoto/elgon"
+	"github.com/meshackkazimoto/elgon/middleware"
+	"github.com/meshackkazimoto/elgon/observability"
+	"github.com/meshackkazimoto/elgon/openapi"
 )
 
-type appConfig struct {
-    Addr string `env:"APP_ADDR" default:":8080"`
-}
-
 func main() {
-    cfg, err := config.LoadEnv[appConfig]()
-    if err != nil {
-        log.Fatal(err)
-    }
+	app := elgon.New(elgon.Config{Addr: ":8080"})
+	metrics := observability.NewMetrics()
 
-    app := elgon.New(elgon.Config{Addr: cfg.Addr})
-    metrics := observability.NewMetrics()
+	app.Use(
+		middleware.Recover(),
+		middleware.RequestID(),
+		middleware.Logger(slog.New(slog.NewJSONHandler(os.Stdout, nil))),
+		metrics.Middleware(),
+	)
 
-    app.Use(
-        middleware.Recover(),
-        middleware.RequestID(),
-        middleware.Logger(slog.New(slog.NewJSONHandler(os.Stdout, nil))),
-        metrics.Middleware(),
-    )
+	app.GET("/users/:id", func(c *elgon.Ctx) error {
+		return c.JSON(200, map[string]string{"id": c.Param("id")})
+	})
 
-    metrics.RegisterRoute(app, "/metrics")
+	metrics.RegisterRoute(app, "/metrics")
+	openapi.NewGenerator("Example API", elgon.Version).Register(app, "/openapi.json", "/docs")
 
-    docs := openapi.NewGenerator("Example API", elgon.Version)
-    docs.Register(app, "/openapi.json", "/docs")
-
-    app.GET("/users/:id", func(c *elgon.Ctx) error {
-        return c.JSON(200, map[string]string{"id": c.Param("id")})
-    })
-
-    if err := app.Run(); err != nil {
-        log.Fatal(err)
-    }
+	if err := app.Run(); err != nil {
+		log.Fatal(err)
+	}
 }
 ```
 
-## Run tests
+## Demo Application
+
+A complete reference implementation is available at:
+
+- `examples/demo-app`
+
+Run it with:
 
 ```bash
-go test ./...
+cd examples/demo-app
+go mod tidy
+go run ./cmd/api
 ```
 
-## CLI usage
+## CLI
+
+`elgon` includes a project CLI under `cmd/elgon`.
 
 ```bash
 go run ./cmd/elgon --help
-go run ./cmd/elgon migrate status -dir ./migrations -driver sqlite -dsn 'file::memory:?cache=shared'
 ```
 
-## Roadmap
+Available command groups include `new`, `dev`, `test`, `bench`, `migrate`, and `openapi`.
 
-Next planned modules: DB driver integration tests, richer OpenAPI schema generation, and multi-node distributed job backends.
-Completed above. Next planned modules: OAuth2/OIDC providers, advanced OpenAPI schema annotations/examples, and Redis/Kafka distributed queue backends.
-Completed above:
-- OAuth2/OIDC:
-  - `auth/oauth_oidc.go` provides OAuth2 auth URL + code exchange, OIDC discovery, userinfo fetch, and ID token claims parsing helpers.
-- OpenAPI annotations/examples:
-  - `openapi/schema.go` supports `description`, `example`, and `openapi` struct tags (`format`, `enum`, `minimum`, `maximum`, `minLength`, `maxLength`, `pattern`).
-  - `openapi.Operation` now supports request/response examples and deprecation flag.
-- Distributed queue backends:
-  - `jobs/redis.go` adds Redis-backed queue interface.
-  - `jobs/kafka.go` adds Kafka-backed queue interface.
-  - Optional concrete adapters:
-    - `jobs/redisadapter` (go-redis)
-    - `jobs/kafkaadapter` (segmentio/kafka-go)
-    - Build with `-tags=adapters`
+## Testing and Benchmarks
+
+```bash
+go test ./...
+make bench-ci
+make bench
+```
+
+DB integration tests are env-driven and can be enabled with:
+
+- `ELGON_DB_TEST_DRIVER`
+- `ELGON_DB_TEST_DSN`
+
+## Optional Adapters
+
+Concrete Redis and Kafka adapters are provided behind the `adapters` build tag:
+
+- `jobs/redisadapter` (go-redis)
+- `jobs/kafkaadapter` (segmentio/kafka-go)
+
+Build/test with adapters:
+
+```bash
+go test -tags adapters ./...
+go build -tags adapters ./...
+```
