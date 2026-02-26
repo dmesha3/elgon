@@ -130,7 +130,10 @@ func (e *Engine) applyOne(ctx context.Context, m Migration) error {
 		_ = tx.Rollback()
 		return err
 	}
-	query := fmt.Sprintf("INSERT INTO %s (version, name, applied_at) VALUES (?, ?, CURRENT_TIMESTAMP)", e.tableName())
+	query := fmt.Sprintf(
+		"INSERT INTO %s (version, name, applied_at) VALUES (%s, %s, CURRENT_TIMESTAMP)",
+		e.tableName(), e.ph(1), e.ph(2),
+	)
 	if _, err := tx.ExecContext(ctx, query, m.Version, m.Name); err != nil {
 		_ = tx.Rollback()
 		return err
@@ -147,7 +150,7 @@ func (e *Engine) rollbackOne(ctx context.Context, m Migration) error {
 		_ = tx.Rollback()
 		return err
 	}
-	query := fmt.Sprintf("DELETE FROM %s WHERE version = ?", e.tableName())
+	query := fmt.Sprintf("DELETE FROM %s WHERE version = %s", e.tableName(), e.ph(1))
 	if _, err := tx.ExecContext(ctx, query, m.Version); err != nil {
 		_ = tx.Rollback()
 		return err
@@ -178,6 +181,13 @@ func (e *Engine) tableName() string {
 		return DefaultTable
 	}
 	return e.Table
+}
+
+func (e *Engine) ph(n int) string {
+	if strings.EqualFold(e.Dialect, "postgres") || strings.EqualFold(e.Dialect, "pg") {
+		return fmt.Sprintf("$%d", n)
+	}
+	return "?"
 }
 
 func ParseMigrationFileName(filename, dialect string) (version int, name string, direction string, ok bool) {

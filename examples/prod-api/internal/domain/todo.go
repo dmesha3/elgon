@@ -21,3 +21,15 @@ type LoginResponse struct {
 	AccessToken string `json:"access_token"`
 	TokenType   string `json:"token_type"`
 }
+
+type CreateUserRequest struct {
+	Email string `json:"email"`
+	Name  string `json:"name"`
+}
+
+type User struct {
+	ID        int64     `json:"id"`
+	Email     string    `json:"email"`
+	Name      string    `json:"name"`
+	CreatedAt time.Time `json:"created_at"`
+}

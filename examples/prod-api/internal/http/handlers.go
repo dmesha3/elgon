@@ -31,12 +31,35 @@ func (h *Handlers) Login(c *elgon.Ctx) error {
 	if email == "" {
 		return elgon.ErrBadRequest("email is required", nil)
 	}
-	claims := auth.Claims{Sub: email, Email: email, Roles: []string{"user"}, Perms: []string{"todos:read", "todos:write"}}
+	claims := auth.Claims{Sub: email, Email: email, Roles: []string{"user"}, Perms: []string{"todos:read", "todos:write", "users:write"}}
 	tok, err := h.JWT.Sign(claims, 24*time.Hour)
 	if err != nil {
 		return elgon.ErrInternal("token generation failed")
 	}
 	return c.JSON(200, domain.LoginResponse{AccessToken: tok, TokenType: "Bearer"})
+}
+
+func (h *Handlers) CreateUser(c *elgon.Ctx) error {
+	var req domain.CreateUserRequest
+	if err := c.BindJSON(&req); err != nil {
+		return err
+	}
+	email := strings.TrimSpace(strings.ToLower(req.Email))
+	name := strings.TrimSpace(req.Name)
+	if email == "" {
+		return elgon.ErrBadRequest("email is required", nil)
+	}
+	if name == "" {
+		return elgon.ErrBadRequest("name is required", nil)
+	}
+	u, err := h.Repo.CreateUser(c.Request.Context(), email, name)
+	if err != nil {
+		if strings.Contains(strings.ToLower(err.Error()), "unique") {
+			return elgon.ErrConflict("user already exists")
+		}
+		return elgon.ErrInternal("failed to create user")
+	}
+	return c.JSON(201, u)
 }
 
 func (h *Handlers) ListTodos(c *elgon.Ctx) error {
