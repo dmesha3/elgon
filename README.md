@@ -161,3 +161,7 @@ Completed above:
 - Distributed queue backends:
   - `jobs/redis.go` adds Redis-backed queue interface.
   - `jobs/kafka.go` adds Kafka-backed queue interface.
+  - Optional concrete adapters:
+    - `jobs/redisadapter` (go-redis)
+    - `jobs/kafkaadapter` (segmentio/kafka-go)
+    - Build with `-tags=adapters`
