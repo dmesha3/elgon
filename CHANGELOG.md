@@ -2,6 +2,30 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.2.0] - 2026-02-27
+
+### Added
+
+- Optional ORM module (`orm`) with generic table client API:
+  - `FindMany`, `FindFirst`, `FindFirstOrThrow`, `FindUnique`, `FindUniqueOrThrow`
+  - `Create`, `Update`, `Upsert`, `Delete`
+  - `CreateMany`, `CreateManyAndReturn`, `UpdateMany`, `UpdateManyAndReturn`, `DeleteMany`
+- App-level data access entrypoints:
+  - `app.SetSQL(...)`, `app.SQL()`
+  - `app.SetORMDialect(...)`, `app.ORM()`
+- ORM `where` operator support with backward compatibility for existing equality filters:
+  - Logical: `AND`, `OR`, `NOT`
+  - Scalar: `equals`, `not`, `in`, `notIn`, `lt`, `lte`, `gt`, `gte`, `contains`, `startsWith`, `endsWith`, `isSet`, `isEmpty`
+- ORM errors:
+  - `ErrNonUnique`
+  - `ErrUnsupportedOperator` (for not-yet-supported composite/list operators such as `some`/`every`/`none`/`has*`)
+- ORM module docs: `docs/modules/orm.md`
+
+### Notes
+
+- ORM remains optional and thin over `db.Adapter`; raw SQL remains available via `app.SQL()`.
+- Composite/list operators requiring dialect-specific semantics are intentionally deferred and now return `ErrUnsupportedOperator`.
+
 ## [0.1.1] - 2026-02-26
 
 ### Added
