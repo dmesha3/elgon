@@ -9,4 +9,6 @@ var (
 	ErrInvalidInput = errors.New("orm: invalid input")
 	// ErrNonUnique is returned when a unique lookup matches multiple rows.
 	ErrNonUnique = errors.New("orm: non-unique result")
+	// ErrUnsupportedOperator is returned when a where operator is not supported by this ORM.
+	ErrUnsupportedOperator = errors.New("orm: unsupported operator")
 )

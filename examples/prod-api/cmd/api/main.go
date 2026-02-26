@@ -85,6 +85,14 @@ func main() {
 	// 	"email": "meshack@example.com",
 	// })
 
+	// users, _ := appServer.ORM().Table("users").FindMany(context.Background(), orm.FindOptions{
+	// 	Where: orm.Where{
+	// 		"OR": []any{
+	// 			orm.Where{"email": orm.Where{"endsWith": "gmail.com"}},
+	// 			orm.Where{"email": orm.Where{"endsWith": "company.com"}},
+	// 		},
+	// 	},
+	// })
 
 	// fmt.Printf("created user: %+v\n", user)
 

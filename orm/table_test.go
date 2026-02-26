@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -511,5 +512,135 @@ func TestQueryErrorPassthrough(t *testing.T) {
 	_, err := table.FindMany(context.Background(), FindOptions{Columns: []string{"id"}})
 	if err == nil || !strings.Contains(err.Error(), "boom") {
 		t.Fatalf("expected passthrough query error, got %v", err)
+	}
+}
+
+func TestWhereOperatorsAndLogicalCombinators(t *testing.T) {
+	adapter := &fakeAdapter{
+		rowsQueue: []db.Rows{
+			&fakeRows{cols: []string{"id"}, vals: [][]any{{"u1"}}},
+		},
+	}
+	table := New(adapter).Table("users")
+
+	_, err := table.FindMany(context.Background(), FindOptions{
+		Columns: []string{"id"},
+		Where: Where{
+			"OR": []any{
+				Where{"email": map[string]any{"endsWith": "gmail.com"}},
+				Where{"email": map[string]any{"endsWith": "company.com"}},
+			},
+			"NOT": Where{
+				"email": map[string]any{"endsWith": "admin.company.com"},
+			},
+			"age": map[string]any{"gte": 18},
+		},
+	})
+	if err != nil {
+		t.Fatalf("find many with logical operators failed: %v", err)
+	}
+	q := adapter.queryStmts[0]
+	if !strings.Contains(q, "NOT (email LIKE ?)") {
+		t.Fatalf("expected NOT expression in query, got %s", q)
+	}
+	if !strings.Contains(q, "(email LIKE ? OR email LIKE ?)") {
+		t.Fatalf("expected OR expression in query, got %s", q)
+	}
+	if !strings.Contains(q, "age >= ?") {
+		t.Fatalf("expected gte expression in query, got %s", q)
+	}
+	if len(adapter.queryArgs[0]) != 4 {
+		t.Fatalf("expected 4 args for logical operator query, got %d", len(adapter.queryArgs[0]))
+	}
+}
+
+func TestWhereScalarOperators(t *testing.T) {
+	adapter := &fakeAdapter{
+		rowsQueue: []db.Rows{
+			&fakeRows{cols: []string{"id"}, vals: [][]any{{"u1"}}},
+		},
+	}
+	table := New(adapter).Table("users")
+
+	_, err := table.FindMany(context.Background(), FindOptions{
+		Columns: []string{"id"},
+		Where: Where{
+			"id": map[string]any{
+				"in":    []string{"u1", "u2"},
+				"notIn": []string{"u3"},
+			},
+			"email": map[string]any{"contains": "@example.com"},
+			"name":  map[string]any{"startsWith": "Mes"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("find many with scalar operators failed: %v", err)
+	}
+	q := adapter.queryStmts[0]
+	if !strings.Contains(q, "id IN (?, ?)") {
+		t.Fatalf("expected IN expression in query, got %s", q)
+	}
+	if !strings.Contains(q, "id NOT IN (?)") {
+		t.Fatalf("expected NOT IN expression in query, got %s", q)
+	}
+	if !strings.Contains(q, "email LIKE ?") || !strings.Contains(q, "name LIKE ?") {
+		t.Fatalf("expected LIKE expressions in query, got %s", q)
+	}
+}
+
+func TestWhereMapEqualityBackwardsCompatible(t *testing.T) {
+	adapter := &fakeAdapter{
+		rowsQueue: []db.Rows{
+			&fakeRows{cols: []string{"id"}, vals: [][]any{{"u1"}}},
+		},
+	}
+	table := New(adapter).Table("users")
+	jsonValue := map[string]any{"theme": "dark"}
+
+	_, err := table.FindMany(context.Background(), FindOptions{
+		Columns: []string{"id"},
+		Where:   Where{"profile_json": jsonValue},
+	})
+	if err != nil {
+		t.Fatalf("find many with map equality should still work: %v", err)
+	}
+	if !strings.Contains(adapter.queryStmts[0], "profile_json = ?") {
+		t.Fatalf("expected equality fallback for map value, got %s", adapter.queryStmts[0])
+	}
+	if got := adapter.queryArgs[0][0]; !reflect.DeepEqual(got, jsonValue) {
+		t.Fatalf("expected original map arg, got %#v", got)
+	}
+}
+
+func TestUnsupportedAndInvalidOperators(t *testing.T) {
+	adapter := &fakeAdapter{}
+	table := New(adapter).Table("users")
+
+	_, err := table.FindMany(context.Background(), FindOptions{
+		Columns: []string{"id"},
+		Where: Where{
+			"photos": map[string]any{
+				"some": map[string]any{"url": "2.jpg"},
+			},
+		},
+	})
+	if !errors.Is(err, ErrUnsupportedOperator) {
+		t.Fatalf("expected ErrUnsupportedOperator for composite/list operator, got %v", err)
+	}
+
+	_, err = table.FindMany(context.Background(), FindOptions{
+		Columns: []string{"id"},
+		Where:   Where{"id": map[string]any{"unknown": 1}},
+	})
+	if err != nil {
+		t.Fatalf("unknown nested key should fallback to equality, got %v", err)
+	}
+
+	_, err = table.FindMany(context.Background(), FindOptions{
+		Columns: []string{"id"},
+		Where:   Where{"id": map[string]any{"in": []string{}}},
+	})
+	if !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("expected ErrInvalidInput for empty in list, got %v", err)
 	}
 }

@@ -10,6 +10,13 @@ Optional ORM layer built on top of `db.Adapter`.
 - Bulk methods: `CreateMany`, `CreateManyAndReturn`, `UpdateMany`, `UpdateManyAndReturn`, `DeleteMany`
 - Raw SQL escape hatch via `Client.SQL()`
 - Dialect-aware placeholders (`postgres`/`pg` vs `?`)
+- Backward-compatible `Where` map (simple equality still works)
+
+## Where Operators
+
+- Logical: `AND`, `OR`, `NOT`
+- Scalar: `equals`, `not`, `in`, `notIn`, `lt`, `lte`, `gt`, `gte`, `contains`, `startsWith`, `endsWith`, `isSet`, `isEmpty`
+- Unsupported (returns `ErrUnsupportedOperator`): `some`, `every`, `none`, `has`, `hasEvery`, `hasSome` (these need dialect-specific composite/array semantics)
 
 ## Primary API
 

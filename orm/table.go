@@ -3,6 +3,7 @@ package orm
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"regexp"
 	"sort"
 	"strings"
@@ -444,23 +445,14 @@ func (t *Table) whereClause(where Where, start int) (string, []any, error) {
 	if len(where) == 0 {
 		return "", nil, nil
 	}
-	cols := make([]string, 0, len(where))
-	for col := range where {
-		cols = append(cols, col)
+	expr, args, _, err := t.buildWhereMap(where, start)
+	if err != nil {
+		return "", nil, err
 	}
-	sort.Strings(cols)
-
-	parts := make([]string, 0, len(cols))
-	args := make([]any, 0, len(cols))
-	for i, col := range cols {
-		validCol, err := validIdentifier(col, "where column")
-		if err != nil {
-			return "", nil, err
-		}
-		parts = append(parts, fmt.Sprintf("%s = %s", validCol, t.ph(start+i+1)))
-		args = append(args, where[col])
+	if expr == "" {
+		return "", args, nil
 	}
-	return " WHERE " + strings.Join(parts, " AND "), args, nil
+	return " WHERE " + expr, args, nil
 }
 
 func (t *Table) supportsReturning() bool {
@@ -607,6 +599,355 @@ func columnHints(where Where, patch Values) []string {
 	}
 	sort.Strings(hints)
 	return hints
+}
+
+func (t *Table) buildWhereMap(where map[string]any, start int) (string, []any, int, error) {
+	keys := make([]string, 0, len(where))
+	for k := range where {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	parts := make([]string, 0, len(keys))
+	args := make([]any, 0, len(keys))
+	next := start
+
+	for _, key := range keys {
+		raw := where[key]
+		up := strings.ToUpper(strings.TrimSpace(key))
+
+		var (
+			part string
+			out  []any
+			err  error
+		)
+		switch up {
+		case "AND":
+			part, out, next, err = t.buildLogicalListExpr("AND", raw, next)
+		case "OR":
+			part, out, next, err = t.buildLogicalListExpr("OR", raw, next)
+		case "NOT":
+			part, out, next, err = t.buildNotExpr(raw, next)
+		default:
+			part, out, next, err = t.buildFieldExpr(key, raw, next)
+		}
+		if err != nil {
+			return "", nil, start, err
+		}
+		if part == "" {
+			continue
+		}
+		parts = append(parts, part)
+		args = append(args, out...)
+	}
+
+	if len(parts) == 0 {
+		return "", args, next, nil
+	}
+	return strings.Join(parts, " AND "), args, next, nil
+}
+
+func (t *Table) buildLogicalListExpr(op string, value any, start int) (string, []any, int, error) {
+	conditions, err := asConditionList(value)
+	if err != nil {
+		return "", nil, start, err
+	}
+	if len(conditions) == 0 {
+		return "", nil, start, nil
+	}
+
+	parts := make([]string, 0, len(conditions))
+	args := make([]any, 0)
+	next := start
+	for _, cond := range conditions {
+		part, out, n, err := t.buildConditionValue(cond, next)
+		if err != nil {
+			return "", nil, start, err
+		}
+		next = n
+		if part == "" {
+			continue
+		}
+		parts = append(parts, part)
+		args = append(args, out...)
+	}
+	if len(parts) == 0 {
+		return "", args, next, nil
+	}
+	return "(" + strings.Join(parts, " "+op+" ") + ")", args, next, nil
+}
+
+func (t *Table) buildNotExpr(value any, start int) (string, []any, int, error) {
+	part, args, next, err := t.buildConditionValue(value, start)
+	if err != nil {
+		return "", nil, start, err
+	}
+	if part == "" {
+		return "", args, next, nil
+	}
+	return "NOT (" + part + ")", args, next, nil
+}
+
+func (t *Table) buildConditionValue(value any, start int) (string, []any, int, error) {
+	where, ok := asWhereMap(value)
+	if !ok {
+		return "", nil, start, fmt.Errorf("%w: logical clause must be an object or list of objects", ErrInvalidInput)
+	}
+	return t.buildWhereMap(where, start)
+}
+
+func (t *Table) buildFieldExpr(column string, value any, start int) (string, []any, int, error) {
+	col, err := validIdentifier(column, "where column")
+	if err != nil {
+		return "", nil, start, err
+	}
+
+	if ops, ok := asWhereMap(value); ok && len(ops) > 0 && containsAnyOperatorKey(ops) {
+		part, args, next, err := t.buildOperatorExpr(col, ops, start)
+		if err != nil {
+			return "", nil, start, err
+		}
+		return part, args, next, nil
+	}
+
+	if value == nil {
+		return col + " IS NULL", nil, start, nil
+	}
+	return fmt.Sprintf("%s = %s", col, t.ph(start+1)), []any{value}, start + 1, nil
+}
+
+func (t *Table) buildOperatorExpr(column string, ops map[string]any, start int) (string, []any, int, error) {
+	keys := make([]string, 0, len(ops))
+	for k := range ops {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	parts := make([]string, 0, len(keys))
+	args := make([]any, 0)
+	next := start
+
+	for _, key := range keys {
+		value := ops[key]
+		op := strings.ToLower(strings.TrimSpace(key))
+
+		switch op {
+		case "equals", "is":
+			part, out, n, err := t.buildEqualsExpr(column, value, next)
+			if err != nil {
+				return "", nil, start, err
+			}
+			parts = append(parts, part)
+			args = append(args, out...)
+			next = n
+		case "not", "isnot":
+			part, out, n, err := t.buildNotFieldExpr(column, value, next)
+			if err != nil {
+				return "", nil, start, err
+			}
+			parts = append(parts, part)
+			args = append(args, out...)
+			next = n
+		case "in":
+			part, out, n, err := t.buildInExpr(column, value, false, next)
+			if err != nil {
+				return "", nil, start, err
+			}
+			parts = append(parts, part)
+			args = append(args, out...)
+			next = n
+		case "notin":
+			part, out, n, err := t.buildInExpr(column, value, true, next)
+			if err != nil {
+				return "", nil, start, err
+			}
+			parts = append(parts, part)
+			args = append(args, out...)
+			next = n
+		case "lt", "lte", "gt", "gte":
+			part, out, n, err := t.buildCompareExpr(column, op, value, next)
+			if err != nil {
+				return "", nil, start, err
+			}
+			parts = append(parts, part)
+			args = append(args, out...)
+			next = n
+		case "contains", "startswith", "endswith":
+			part, out, n, err := t.buildStringExpr(column, op, value, next)
+			if err != nil {
+				return "", nil, start, err
+			}
+			parts = append(parts, part)
+			args = append(args, out...)
+			next = n
+		case "isset":
+			part, err := buildIsSetExpr(column, value)
+			if err != nil {
+				return "", nil, start, err
+			}
+			parts = append(parts, part)
+		case "isempty":
+			part, err := buildIsEmptyExpr(column, value)
+			if err != nil {
+				return "", nil, start, err
+			}
+			parts = append(parts, part)
+		case "some", "every", "none", "has", "hasevery", "hassome":
+			return "", nil, start, fmt.Errorf("%w: %s", ErrUnsupportedOperator, key)
+		default:
+			return "", nil, start, fmt.Errorf("%w: unknown operator %q", ErrInvalidInput, key)
+		}
+	}
+
+	if len(parts) == 0 {
+		return "", args, next, nil
+	}
+	return strings.Join(parts, " AND "), args, next, nil
+}
+
+func (t *Table) buildEqualsExpr(column string, value any, start int) (string, []any, int, error) {
+	if value == nil {
+		return column + " IS NULL", nil, start, nil
+	}
+	return fmt.Sprintf("%s = %s", column, t.ph(start+1)), []any{value}, start + 1, nil
+}
+
+func (t *Table) buildNotFieldExpr(column string, value any, start int) (string, []any, int, error) {
+	if nested, ok := asWhereMap(value); ok && len(nested) > 0 {
+		part, args, next, err := t.buildOperatorExpr(column, nested, start)
+		if err != nil {
+			return "", nil, start, err
+		}
+		return "NOT (" + part + ")", args, next, nil
+	}
+	if value == nil {
+		return column + " IS NOT NULL", nil, start, nil
+	}
+	return fmt.Sprintf("%s <> %s", column, t.ph(start+1)), []any{value}, start + 1, nil
+}
+
+func (t *Table) buildInExpr(column string, value any, negate bool, start int) (string, []any, int, error) {
+	items, ok := toAnySlice(value)
+	if !ok || len(items) == 0 {
+		return "", nil, start, fmt.Errorf("%w: in/notIn requires a non-empty list", ErrInvalidInput)
+	}
+
+	holders := make([]string, 0, len(items))
+	next := start
+	for range items {
+		next++
+		holders = append(holders, t.ph(next))
+	}
+	op := "IN"
+	if negate {
+		op = "NOT IN"
+	}
+	return fmt.Sprintf("%s %s (%s)", column, op, strings.Join(holders, ", ")), items, next, nil
+}
+
+func (t *Table) buildCompareExpr(column, op string, value any, start int) (string, []any, int, error) {
+	symbol := map[string]string{
+		"lt":  "<",
+		"lte": "<=",
+		"gt":  ">",
+		"gte": ">=",
+	}[op]
+	return fmt.Sprintf("%s %s %s", column, symbol, t.ph(start+1)), []any{value}, start + 1, nil
+}
+
+func (t *Table) buildStringExpr(column, op string, value any, start int) (string, []any, int, error) {
+	s, ok := value.(string)
+	if !ok {
+		return "", nil, start, fmt.Errorf("%w: %s expects string", ErrInvalidInput, op)
+	}
+	switch op {
+	case "contains":
+		s = "%" + s + "%"
+	case "startswith":
+		s = s + "%"
+	case "endswith":
+		s = "%" + s
+	}
+	return fmt.Sprintf("%s LIKE %s", column, t.ph(start+1)), []any{s}, start + 1, nil
+}
+
+func buildIsSetExpr(column string, value any) (string, error) {
+	b, ok := value.(bool)
+	if !ok {
+		return "", fmt.Errorf("%w: isSet expects bool", ErrInvalidInput)
+	}
+	if b {
+		return column + " IS NOT NULL", nil
+	}
+	return column + " IS NULL", nil
+}
+
+func buildIsEmptyExpr(column string, value any) (string, error) {
+	b, ok := value.(bool)
+	if !ok {
+		return "", fmt.Errorf("%w: isEmpty expects bool", ErrInvalidInput)
+	}
+	if b {
+		return column + " = ''", nil
+	}
+	return column + " <> ''", nil
+}
+
+func asConditionList(value any) ([]any, error) {
+	if value == nil {
+		return nil, nil
+	}
+	if w, ok := asWhereMap(value); ok {
+		return []any{w}, nil
+	}
+	items, ok := toAnySlice(value)
+	if !ok {
+		return nil, fmt.Errorf("%w: logical operator expects object or list", ErrInvalidInput)
+	}
+	return items, nil
+}
+
+func asWhereMap(value any) (map[string]any, bool) {
+	switch v := value.(type) {
+	case Where:
+		out := make(map[string]any, len(v))
+		for k, val := range v {
+			out[k] = val
+		}
+		return out, true
+	case map[string]any:
+		return v, true
+	default:
+		return nil, false
+	}
+}
+
+func toAnySlice(value any) ([]any, bool) {
+	if value == nil {
+		return nil, false
+	}
+	if out, ok := value.([]any); ok {
+		return out, true
+	}
+	rv := reflect.ValueOf(value)
+	if rv.Kind() != reflect.Slice && rv.Kind() != reflect.Array {
+		return nil, false
+	}
+	out := make([]any, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		out[i] = rv.Index(i).Interface()
+	}
+	return out, true
+}
+
+func containsAnyOperatorKey(ops map[string]any) bool {
+	for key := range ops {
+		switch strings.ToLower(strings.TrimSpace(key)) {
+		case "equals", "is", "not", "isnot", "in", "notin", "lt", "lte", "gt", "gte", "contains", "startswith", "endswith", "isset", "isempty", "some", "every", "none", "has", "hasevery", "hassome":
+			return true
+		}
+	}
+	return false
 }
 
 func hasStar(columns []string) bool {
