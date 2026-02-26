@@ -1,0 +1,5 @@
+# benchmark\tmax_ns_op\tmax_allocs_op
+BenchmarkRouterStatic	200000	25
+BenchmarkRouterParam	250000	30
+BenchmarkRouterWildcard	300000	35
+BenchmarkMiddlewareChain	450000	60

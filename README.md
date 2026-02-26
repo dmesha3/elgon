@@ -45,6 +45,10 @@
   - `elgon bench`
   - `elgon migrate up|down|status`
   - `elgon openapi generate|validate`
+- Benchmarks and CI guardrails:
+  - `benchmarks/` module for router, middleware, json, and e2e benchmarks
+  - `scripts/bench_guard.sh` threshold checks for PR smoke benchmarks
+  - GitHub Actions workflows for CI smoke and nightly full benchmarks
 
 ## Install
 
