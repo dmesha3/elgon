@@ -152,3 +152,12 @@ go run ./cmd/elgon migrate status -dir ./migrations -driver sqlite -dsn 'file::m
 
 Next planned modules: DB driver integration tests, richer OpenAPI schema generation, and multi-node distributed job backends.
 Completed above. Next planned modules: OAuth2/OIDC providers, advanced OpenAPI schema annotations/examples, and Redis/Kafka distributed queue backends.
+Completed above:
+- OAuth2/OIDC:
+  - `auth/oauth_oidc.go` provides OAuth2 auth URL + code exchange, OIDC discovery, userinfo fetch, and ID token claims parsing helpers.
+- OpenAPI annotations/examples:
+  - `openapi/schema.go` supports `description`, `example`, and `openapi` struct tags (`format`, `enum`, `minimum`, `maximum`, `minLength`, `maxLength`, `pattern`).
+  - `openapi.Operation` now supports request/response examples and deprecation flag.
+- Distributed queue backends:
+  - `jobs/redis.go` adds Redis-backed queue interface.
+  - `jobs/kafka.go` adds Kafka-backed queue interface.

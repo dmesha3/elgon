@@ -1,7 +1,9 @@
 package openapi
 
 import (
+	"encoding/json"
 	"reflect"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -53,6 +55,7 @@ func buildSchema(t reflect.Type, components map[string]any) map[string]any {
 			} else {
 				properties[name] = buildSchema(f.Type, components)
 			}
+			applyFieldAnnotations(properties[name].(map[string]any), f)
 			if !omit {
 				required = append(required, name)
 			}
@@ -87,4 +90,81 @@ func jsonFieldName(f reflect.StructField) (name string, omitempty bool) {
 		}
 	}
 	return name, omitempty
+}
+
+func applyFieldAnnotations(schema map[string]any, f reflect.StructField) {
+	if desc := strings.TrimSpace(f.Tag.Get("description")); desc != "" {
+		schema["description"] = desc
+	}
+	if ex := strings.TrimSpace(f.Tag.Get("example")); ex != "" {
+		schema["example"] = typedExample(ex, schema["type"])
+	}
+	if raw := strings.TrimSpace(f.Tag.Get("openapi")); raw != "" {
+		parts := strings.Split(raw, ",")
+		for _, part := range parts {
+			kv := strings.SplitN(strings.TrimSpace(part), "=", 2)
+			if len(kv) != 2 {
+				continue
+			}
+			key := strings.TrimSpace(kv[0])
+			val := strings.TrimSpace(kv[1])
+			switch key {
+			case "description":
+				schema["description"] = val
+			case "format":
+				schema["format"] = val
+			case "example":
+				schema["example"] = typedExample(val, schema["type"])
+			case "enum":
+				items := strings.Split(val, "|")
+				enum := make([]any, 0, len(items))
+				for _, item := range items {
+					enum = append(enum, typedExample(strings.TrimSpace(item), schema["type"]))
+				}
+				schema["enum"] = enum
+			case "minimum":
+				if v, err := strconv.ParseFloat(val, 64); err == nil {
+					schema["minimum"] = v
+				}
+			case "maximum":
+				if v, err := strconv.ParseFloat(val, 64); err == nil {
+					schema["maximum"] = v
+				}
+			case "minLength":
+				if v, err := strconv.Atoi(val); err == nil {
+					schema["minLength"] = v
+				}
+			case "maxLength":
+				if v, err := strconv.Atoi(val); err == nil {
+					schema["maxLength"] = v
+				}
+			case "pattern":
+				schema["pattern"] = val
+			}
+		}
+	}
+}
+
+func typedExample(raw string, typ any) any {
+	kind, _ := typ.(string)
+	switch kind {
+	case "integer":
+		if v, err := strconv.ParseInt(raw, 10, 64); err == nil {
+			return v
+		}
+	case "number":
+		if v, err := strconv.ParseFloat(raw, 64); err == nil {
+			return v
+		}
+	case "boolean":
+		if v, err := strconv.ParseBool(raw); err == nil {
+			return v
+		}
+	case "array", "object":
+		var out any
+		if err := json.Unmarshal([]byte(raw), &out); err == nil {
+			return out
+		}
+	}
+	return raw
 }

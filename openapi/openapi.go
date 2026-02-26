@@ -13,13 +13,16 @@ import (
 
 // Operation contains OpenAPI operation metadata.
 type Operation struct {
-	Summary       string   `json:"summary,omitempty"`
-	Description   string   `json:"description,omitempty"`
-	OperationID   string   `json:"operationId,omitempty"`
-	Tags          []string `json:"tags,omitempty"`
-	RequestModel  any
-	ResponseModel any
-	ResponseCode  int
+	Summary         string   `json:"summary,omitempty"`
+	Description     string   `json:"description,omitempty"`
+	OperationID     string   `json:"operationId,omitempty"`
+	Tags            []string `json:"tags,omitempty"`
+	Deprecated      bool
+	RequestModel    any
+	ResponseModel   any
+	ResponseCode    int
+	RequestExample  any
+	ResponseExample any
 }
 
 // Generator builds OpenAPI documents from registered app routes.
@@ -110,6 +113,9 @@ func (g *Generator) Build(app *elgon.App) map[string]any {
 		if len(op.Tags) > 0 {
 			entry["tags"] = op.Tags
 		}
+		if op.Deprecated {
+			entry["deprecated"] = true
+		}
 		if params := pathParams(tpl); len(params) > 0 {
 			entry["parameters"] = params
 		}
@@ -117,12 +123,16 @@ func (g *Generator) Build(app *elgon.App) map[string]any {
 		if op.RequestModel != nil {
 			name := g.ensureSchema(op.RequestModel)
 			if name != "" {
+				content := map[string]any{
+					"schema": map[string]any{"$ref": "#/components/schemas/" + name},
+				}
+				if op.RequestExample != nil {
+					content["example"] = op.RequestExample
+				}
 				entry["requestBody"] = map[string]any{
 					"required": true,
 					"content": map[string]any{
-						"application/json": map[string]any{
-							"schema": map[string]any{"$ref": "#/components/schemas/" + name},
-						},
+						"application/json": content,
 					},
 				}
 			}
@@ -138,12 +148,16 @@ func (g *Generator) Build(app *elgon.App) map[string]any {
 		if op.ResponseModel != nil {
 			name := g.ensureSchema(op.ResponseModel)
 			if name != "" {
+				content := map[string]any{
+					"schema": map[string]any{"$ref": "#/components/schemas/" + name},
+				}
+				if op.ResponseExample != nil {
+					content["example"] = op.ResponseExample
+				}
 				responses[fmt.Sprintf("%d", respCode)] = map[string]any{
 					"description": http.StatusText(respCode),
 					"content": map[string]any{
-						"application/json": map[string]any{
-							"schema": map[string]any{"$ref": "#/components/schemas/" + name},
-						},
+						"application/json": content,
 					},
 				}
 			}

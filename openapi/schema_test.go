@@ -13,8 +13,8 @@ type profile struct {
 }
 
 type userReq struct {
-	Name  string   `json:"name"`
-	Email string   `json:"email,omitempty"`
+	Name  string   `json:"name" description:"Display name" openapi:"minLength=2,maxLength=50,example=Alice"`
+	Email string   `json:"email,omitempty" openapi:"format=email,example=alice@example.com"`
 	Tags  []string `json:"tags,omitempty"`
 }
 
@@ -33,6 +33,13 @@ func TestBuildSchemasFromModels(t *testing.T) {
 		RequestModel:  userReq{},
 		ResponseModel: userResp{},
 		ResponseCode:  201,
+		RequestExample: map[string]any{
+			"name":  "Alice",
+			"email": "alice@example.com",
+		},
+		ResponseExample: map[string]any{
+			"id": 1,
+		},
 	})
 	doc := gen.Build(app)
 
@@ -52,5 +59,25 @@ func TestBuildSchemasFromModels(t *testing.T) {
 	post := paths["/users"]["post"].(map[string]any)
 	if _, ok := post["requestBody"]; !ok {
 		t.Fatal("expected requestBody in operation")
+	}
+	reqBody := post["requestBody"].(map[string]any)
+	content := reqBody["content"].(map[string]any)["application/json"].(map[string]any)
+	if content["example"] == nil {
+		t.Fatal("expected request example")
+	}
+	resp := post["responses"].(map[string]any)["201"].(map[string]any)
+	respContent := resp["content"].(map[string]any)["application/json"].(map[string]any)
+	if respContent["example"] == nil {
+		t.Fatal("expected response example")
+	}
+
+	reqSchema := schemas["userReq"].(map[string]any)
+	props := reqSchema["properties"].(map[string]any)
+	nameProp := props["name"].(map[string]any)
+	if nameProp["description"] != "Display name" {
+		t.Fatalf("missing description annotation: %#v", nameProp)
+	}
+	if nameProp["minLength"] != 2 {
+		t.Fatalf("missing minLength annotation: %#v", nameProp)
 	}
 }
