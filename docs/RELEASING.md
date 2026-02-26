@@ -1,6 +1,6 @@
 # Releasing
 
-## v0.1.0 release steps
+## Release steps
 
 1. Ensure main is green:
 
@@ -17,8 +17,8 @@ go test ./...
 3. Create and push tag:
 
 ```bash
-git tag -a v0.1.0 -m "v0.1.0"
-git push origin v0.1.0
+git tag -a vX.Y.Z -m "vX.Y.Z"
+git push origin vX.Y.Z
 ```
 
 4. GitHub Actions `release` workflow publishes binaries and release notes.

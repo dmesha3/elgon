@@ -3,7 +3,7 @@
 ## Go module
 
 ```bash
-go get github.com/meshackkazimoto/elgon@v0.1.0
+go get github.com/meshackkazimoto/elgon@v0.1.1
 ```
 
 ## Build from source

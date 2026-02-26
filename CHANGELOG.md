@@ -2,6 +2,24 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.1.1] - 2026-02-26
+
+### Added
+
+- OpenAPI bearer authentication support:
+  - `openapi.Generator.EnableBearerAuth()`
+  - `openapi.Operation.RequiresAuth` for per-operation security requirements
+- Swagger UI now shows the `Authorize` bearer token flow when bearer auth is enabled.
+- Developer hot-reload mode:
+  - `make dev HOT_RELOAD=1`
+  - `elgon dev --hot-reload`
+  - CLI fallback to `go run github.com/air-verse/air@latest` when `air` is not installed locally.
+
+### Fixed
+
+- Kafka adapter producer construction now matches `kafka-go` v0.4.50 (`kafka.NewWriter(kafka.WriterConfig{...})`).
+- Adapter integration tests now skip when external Redis/Kafka services are unavailable instead of hard-failing.
+
 ## [0.1.0] - 2026-02-26
 
 Initial public release.
