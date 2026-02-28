@@ -2,6 +2,20 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.2.1] - 2026-02-28
+
+### Added
+
+- ORM schema migration additions:
+  - `orm.Client.AutoMigrate(ctx, entities...)` for additive `CREATE TABLE IF NOT EXISTS`
+  - `orm.BuildCreateTableSQL(...)` and `orm.BuildCreateTableSQLForTable(...)`
+- Model-driven SQL migration generation:
+  - `elgon migrate generate -models ... -name ...` creates `*.up.sql` / `*.down.sql`
+  - generated migration names include random suffixes to avoid collisions
+  - optional `-apply` to immediately apply the generated migration to DB schema
+- Migration module API:
+  - `migrate.GenerateFromModelFiles(...)`
+
 ## [0.2.0] - 2026-02-27
 
 ### Added

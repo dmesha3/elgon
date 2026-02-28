@@ -9,6 +9,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
+	"strings"
 
 	"github.com/meshackkazimoto/elgon"
 	"github.com/meshackkazimoto/elgon/db"
@@ -140,7 +142,7 @@ func runCmd(name string, args ...string) error {
 
 func cmdMigrate(args []string) error {
 	if len(args) < 1 {
-		return errors.New("usage: elgon migrate up|down|status [flags]")
+		return errors.New("usage: elgon migrate up|down|status|generate [flags]")
 	}
 	action := args[0]
 	fs := flag.NewFlagSet("migrate", flag.ContinueOnError)
@@ -149,8 +151,44 @@ func cmdMigrate(args []string) error {
 	dsn := fs.String("dsn", "file::memory:?cache=shared", "database dsn")
 	dialect := fs.String("dialect", "", "migration dialect suffix (pg/mysql/sqlite)")
 	steps := fs.Int("steps", 1, "number of steps (0 for all on up)")
+	models := fs.String("models", "", "comma-separated model file paths or globs for generate")
+	name := fs.String("name", "autogen", "migration name for generate")
+	apply := fs.Bool("apply", false, "apply generated migration immediately")
 	if err := fs.Parse(args[1:]); err != nil {
 		return err
+	}
+
+	if action == "generate" {
+		modelFiles, err := resolveModelFiles(*models)
+		if err != nil {
+			return err
+		}
+		gen, err := migrate.GenerateFromModelFiles(*dir, *dialect, *name, modelFiles)
+		if err != nil {
+			return err
+		}
+		fmt.Println("generated", gen.UpPath)
+		fmt.Println("generated", gen.DownPath)
+		if !*apply {
+			return nil
+		}
+		adapter, err := db.Open(*driver, *dsn)
+		if err != nil {
+			return err
+		}
+		defer adapter.Close()
+		engine := migrate.NewEngine(adapter, *dialect)
+		applied, err := engine.Up(context.Background(), []migrate.Migration{{
+			Version: gen.Version,
+			Name:    gen.Name,
+			UpSQL:   gen.UpSQL,
+			DownSQL: gen.DownSQL,
+		}}, 0)
+		if err != nil {
+			return err
+		}
+		fmt.Println("applied", applied, "migrations")
+		return nil
 	}
 
 	adapter, err := db.Open(*driver, *dsn)
@@ -201,6 +239,45 @@ func cmdMigrate(args []string) error {
 	default:
 		return fmt.Errorf("unknown migrate action: %s", action)
 	}
+}
+
+func resolveModelFiles(raw string) ([]string, error) {
+	if strings.TrimSpace(raw) == "" {
+		return nil, errors.New("migrate generate requires -models")
+	}
+	parts := strings.Split(raw, ",")
+	found := map[string]struct{}{}
+	out := make([]string, 0)
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		matches, err := filepath.Glob(part)
+		if err != nil {
+			return nil, err
+		}
+		if len(matches) == 0 {
+			if _, err := os.Stat(part); err == nil {
+				matches = []string{part}
+			}
+		}
+		for _, match := range matches {
+			if strings.ToLower(filepath.Ext(match)) != ".go" {
+				continue
+			}
+			if _, ok := found[match]; ok {
+				continue
+			}
+			found[match] = struct{}{}
+			out = append(out, match)
+		}
+	}
+	sort.Strings(out)
+	if len(out) == 0 {
+		return nil, fmt.Errorf("no model files matched %q", raw)
+	}
+	return out, nil
 }
 
 func cmdOpenAPI(args []string) error {
