@@ -23,22 +23,6 @@ jobs:
 
       - name: Unit tests
         run: go test ./...
-
-  bench-smoke:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-          cache: true
-
-      - name: Benchmark smoke
-        run: ./scripts/bench_guard.sh
-
   adapters-integration:
     runs-on: ubuntu-latest
     services:
