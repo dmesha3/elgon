@@ -1,5 +1,8 @@
 # elgon
 
+[![Go Reference](https://pkg.go.dev/badge/github.com/dmesha3/elgon.svg)](https://pkg.go.dev/github.com/dmesha3/elgon)
+[![Go Report Card](https://goreportcard.com/badge/github.com/dmesha3/elgon)](https://goreportcard.com/report/github.com/dmesha3/elgon)
+
 `elgon` is a performance-oriented, API-first Go web framework built on top of `net/http`.
 It provides production-focused defaults while keeping APIs explicit, modular, and easy to test.
 
