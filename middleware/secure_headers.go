@@ -1,6 +1,6 @@
 package middleware
 
-import "github.com/meshackkazimoto/elgon"
+import "github.com/dmesha3/elgon"
 
 // SecureHeaders sets baseline secure HTTP response headers.
 func SecureHeaders() elgon.Middleware {

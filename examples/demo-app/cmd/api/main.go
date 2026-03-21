@@ -9,15 +9,15 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/meshackkazimoto/elgon"
-	"github.com/meshackkazimoto/elgon/auth"
-	"github.com/meshackkazimoto/elgon/config"
-	"github.com/meshackkazimoto/elgon/examples/demo-app/internal/app"
-	"github.com/meshackkazimoto/elgon/examples/demo-app/internal/http/handlers"
-	"github.com/meshackkazimoto/elgon/examples/demo-app/internal/http/routes"
-	"github.com/meshackkazimoto/elgon/jobs"
-	"github.com/meshackkazimoto/elgon/middleware"
-	"github.com/meshackkazimoto/elgon/observability"
+	"github.com/dmesha3/elgon"
+	"github.com/dmesha3/elgon/auth"
+	"github.com/dmesha3/elgon/config"
+	"github.com/dmesha3/elgon/examples/demo-app/internal/app"
+	"github.com/dmesha3/elgon/examples/demo-app/internal/http/handlers"
+	"github.com/dmesha3/elgon/examples/demo-app/internal/http/routes"
+	"github.com/dmesha3/elgon/jobs"
+	"github.com/dmesha3/elgon/middleware"
+	"github.com/dmesha3/elgon/observability"
 )
 
 type appConfig struct {

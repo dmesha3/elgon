@@ -1,4 +1,4 @@
-module github.com/meshackkazimoto/elgon
+module github.com/dmesha3/elgon
 
 go 1.24.1
 

@@ -1,8 +1,8 @@
-module github.com/meshackkazimoto/elgon/examples/demo-app
+module github.com/dmesha3/elgon/examples/demo-app
 
 go 1.24.1
 
-require github.com/meshackkazimoto/elgon v0.0.0
+require github.com/dmesha3/elgon v0.0.0
 
 require (
 	golang.org/x/mod v0.33.0 // indirect
@@ -12,4 +12,4 @@ require (
 	golang.org/x/tools v0.42.0 // indirect
 )
 
-replace github.com/meshackkazimoto/elgon => ../..
+replace github.com/dmesha3/elgon => ../..

@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/meshackkazimoto/elgon"
+	"github.com/dmesha3/elgon"
 )
 
 type payload struct {

@@ -1,9 +1,9 @@
-module github.com/meshackkazimoto/elgon/examples/prod-api
+module github.com/dmesha3/elgon/examples/prod-api
 
 go 1.24.1
 
 require (
-	github.com/meshackkazimoto/elgon v0.0.0
+	github.com/dmesha3/elgon v0.0.0
 	modernc.org/sqlite v1.39.1
 )
 
@@ -24,4 +24,4 @@ require (
 	modernc.org/memory v1.11.0 // indirect
 )
 
-replace github.com/meshackkazimoto/elgon => ../..
+replace github.com/dmesha3/elgon => ../..

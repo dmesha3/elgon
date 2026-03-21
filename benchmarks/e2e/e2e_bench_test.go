@@ -5,9 +5,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/meshackkazimoto/elgon"
-	"github.com/meshackkazimoto/elgon/middleware"
-	"github.com/meshackkazimoto/elgon/observability"
+	"github.com/dmesha3/elgon"
+	"github.com/dmesha3/elgon/middleware"
+	"github.com/dmesha3/elgon/observability"
 )
 
 func BenchmarkE2EStack(b *testing.B) {

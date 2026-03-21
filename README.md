@@ -31,7 +31,7 @@ It provides production-focused defaults while keeping APIs explicit, modular, an
 ## Installation
 
 ```bash
-go get github.com/meshackkazimoto/elgon
+go get github.com/dmesha3/elgon
 ```
 
 ## Quick Start
@@ -44,10 +44,10 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/meshackkazimoto/elgon"
-	"github.com/meshackkazimoto/elgon/middleware"
-	"github.com/meshackkazimoto/elgon/observability"
-	"github.com/meshackkazimoto/elgon/openapi"
+	"github.com/dmesha3/elgon"
+	"github.com/dmesha3/elgon/middleware"
+	"github.com/dmesha3/elgon/observability"
+	"github.com/dmesha3/elgon/openapi"
 )
 
 func main() {

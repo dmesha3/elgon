@@ -41,7 +41,7 @@ jobs:
           ' CHANGELOG.md > RELEASE_NOTES.md
           echo "" >> RELEASE_NOTES.md
           echo "## Install" >> RELEASE_NOTES.md
-          echo "go get github.com/meshackkazimoto/elgon@${GITHUB_REF_NAME}" >> RELEASE_NOTES.md
+          echo "go get github.com/dmesha3/elgon@${GITHUB_REF_NAME}" >> RELEASE_NOTES.md
 
       - name: Create release
         uses: softprops/action-gh-release@v2

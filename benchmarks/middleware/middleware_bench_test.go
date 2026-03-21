@@ -7,8 +7,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/meshackkazimoto/elgon"
-	elgonmw "github.com/meshackkazimoto/elgon/middleware"
+	"github.com/dmesha3/elgon"
+	elgonmw "github.com/dmesha3/elgon/middleware"
 )
 
 func BenchmarkMiddlewareChain(b *testing.B) {

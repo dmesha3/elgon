@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/meshackkazimoto/elgon/db"
+	"github.com/dmesha3/elgon/db"
 )
 
 const DefaultTable = "schema_migrations"

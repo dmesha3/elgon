@@ -1,6 +1,6 @@
 package middleware
 
-import "github.com/meshackkazimoto/elgon"
+import "github.com/dmesha3/elgon"
 
 // CORSConfig controls CORS middleware behavior.
 type CORSConfig struct {

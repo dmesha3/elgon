@@ -4,7 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 
-	"github.com/meshackkazimoto/elgon"
+	"github.com/dmesha3/elgon"
 )
 
 const requestIDKey = "request_id"

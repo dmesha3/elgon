@@ -16,7 +16,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/meshackkazimoto/elgon/orm"
+	"github.com/dmesha3/elgon/orm"
 )
 
 // GeneratedMigration holds generated migration metadata and SQL.

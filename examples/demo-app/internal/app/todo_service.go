@@ -4,7 +4,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/meshackkazimoto/elgon/examples/demo-app/internal/domain"
+	"github.com/dmesha3/elgon/examples/demo-app/internal/domain"
 )
 
 type TodoService struct {

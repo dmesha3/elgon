@@ -5,11 +5,11 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/meshackkazimoto/elgon"
-	"github.com/meshackkazimoto/elgon/config"
-	"github.com/meshackkazimoto/elgon/middleware"
-	"github.com/meshackkazimoto/elgon/observability"
-	"github.com/meshackkazimoto/elgon/openapi"
+	"github.com/dmesha3/elgon"
+	"github.com/dmesha3/elgon/config"
+	"github.com/dmesha3/elgon/middleware"
+	"github.com/dmesha3/elgon/observability"
+	"github.com/dmesha3/elgon/openapi"
 )
 
 type appConfig struct {

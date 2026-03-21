@@ -3,7 +3,7 @@ package middleware
 import (
 	"fmt"
 
-	"github.com/meshackkazimoto/elgon"
+	"github.com/dmesha3/elgon"
 )
 
 // Recover catches panics and converts them into a typed internal error.

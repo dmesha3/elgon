@@ -3,7 +3,7 @@ package middleware
 import (
 	"net/http"
 
-	"github.com/meshackkazimoto/elgon"
+	"github.com/dmesha3/elgon"
 )
 
 // BodyLimit rejects payloads larger than maxBytes.

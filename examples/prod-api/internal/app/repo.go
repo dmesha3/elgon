@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/meshackkazimoto/elgon/db"
-	"github.com/meshackkazimoto/elgon/examples/prod-api/internal/domain"
+	"github.com/dmesha3/elgon/db"
+	"github.com/dmesha3/elgon/examples/prod-api/internal/domain"
 )
 
 type TodoRepo struct {

@@ -12,9 +12,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/meshackkazimoto/elgon"
-	"github.com/meshackkazimoto/elgon/db"
-	"github.com/meshackkazimoto/elgon/migrate"
+	"github.com/dmesha3/elgon"
+	"github.com/dmesha3/elgon/db"
+	"github.com/dmesha3/elgon/migrate"
 )
 
 func main() {
@@ -81,7 +81,7 @@ func cmdNew(args []string) error {
 import (
 	"log"
 
-	"github.com/meshackkazimoto/elgon"
+	"github.com/dmesha3/elgon"
 )
 
 func main() {

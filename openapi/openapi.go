@@ -8,7 +8,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/meshackkazimoto/elgon"
+	"github.com/dmesha3/elgon"
 )
 
 // Operation contains OpenAPI operation metadata.

@@ -1,6 +1,6 @@
 package errors
 
-import "github.com/meshackkazimoto/elgon"
+import "github.com/dmesha3/elgon"
 
 func BadRequest(msg string, details any) error { return elgon.ErrBadRequest(msg, details) }
 func Unauthorized(msg string) error            { return elgon.ErrUnauthorized(msg) }

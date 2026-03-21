@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/meshackkazimoto/elgon"
+	"github.com/dmesha3/elgon"
 )
 
 func TestMetricsMiddlewareAndEndpoint(t *testing.T) {

@@ -3,7 +3,7 @@ package observability
 import (
 	"context"
 
-	"github.com/meshackkazimoto/elgon"
+	"github.com/dmesha3/elgon"
 )
 
 // Span is a minimal tracing span abstraction.

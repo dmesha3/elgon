@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/meshackkazimoto/elgon"
+	"github.com/dmesha3/elgon"
 )
 
 type metricKey struct {

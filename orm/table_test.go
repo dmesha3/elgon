@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/meshackkazimoto/elgon/db"
+	"github.com/dmesha3/elgon/db"
 )
 
 type fakeResult struct {

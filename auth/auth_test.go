@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/meshackkazimoto/elgon"
+	"github.com/dmesha3/elgon"
 )
 
 func TestJWTSignVerify(t *testing.T) {

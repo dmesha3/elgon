@@ -3,11 +3,11 @@ package routes
 import (
 	"net/http"
 
-	"github.com/meshackkazimoto/elgon"
-	"github.com/meshackkazimoto/elgon/auth"
-	"github.com/meshackkazimoto/elgon/examples/demo-app/internal/domain"
-	"github.com/meshackkazimoto/elgon/examples/demo-app/internal/http/handlers"
-	"github.com/meshackkazimoto/elgon/openapi"
+	"github.com/dmesha3/elgon"
+	"github.com/dmesha3/elgon/auth"
+	"github.com/dmesha3/elgon/examples/demo-app/internal/domain"
+	"github.com/dmesha3/elgon/examples/demo-app/internal/http/handlers"
+	"github.com/dmesha3/elgon/openapi"
 )
 
 func Register(app *elgon.App, api *handlers.API, jwt *auth.JWTManager) {

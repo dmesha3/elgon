@@ -3,13 +3,13 @@
 ## Go module
 
 ```bash
-go get github.com/meshackkazimoto/elgon@v0.1.1
+go get github.com/dmesha3/elgon@v0.1.1
 ```
 
 ## Build from source
 
 ```bash
-git clone https://github.com/meshackkazimoto/elgon.git
+git clone https://github.com/dmesha3/elgon.git
 cd elgon
 go build ./...
 ```

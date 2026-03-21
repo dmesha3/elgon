@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/meshackkazimoto/elgon"
+	"github.com/dmesha3/elgon"
 )
 
 const userContextKey = "auth.principal"

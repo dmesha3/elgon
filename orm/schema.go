@@ -9,7 +9,7 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/meshackkazimoto/elgon/db"
+	"github.com/dmesha3/elgon/db"
 )
 
 type tableNamer interface {

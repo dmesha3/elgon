@@ -9,8 +9,8 @@ import (
 	"sync"
 	"syscall"
 
-	"github.com/meshackkazimoto/elgon/db"
-	"github.com/meshackkazimoto/elgon/orm"
+	"github.com/dmesha3/elgon/db"
+	"github.com/dmesha3/elgon/orm"
 )
 
 // ErrorResponse is the default structured error payload.

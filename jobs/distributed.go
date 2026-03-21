@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/meshackkazimoto/elgon/db"
+	"github.com/dmesha3/elgon/db"
 )
 
 // SQLBackendConfig controls the distributed SQL queue backend.

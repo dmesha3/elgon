@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"testing"
 
-	"github.com/meshackkazimoto/elgon/db"
+	"github.com/dmesha3/elgon/db"
 )
 
 type noopResult struct{}

@@ -1,6 +1,6 @@
 package orm
 
-import "github.com/meshackkazimoto/elgon/db"
+import "github.com/dmesha3/elgon/db"
 
 // Config controls optional ORM runtime behavior.
 type Config struct {

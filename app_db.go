@@ -1,8 +1,8 @@
 package elgon
 
 import (
-	"github.com/meshackkazimoto/elgon/db"
-	"github.com/meshackkazimoto/elgon/orm"
+	"github.com/dmesha3/elgon/db"
+	"github.com/dmesha3/elgon/orm"
 )
 
 // SetSQL sets the application's raw SQL adapter used by SQL and ORM accessors.

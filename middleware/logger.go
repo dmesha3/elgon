@@ -4,7 +4,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/meshackkazimoto/elgon"
+	"github.com/dmesha3/elgon"
 )
 
 // Logger logs basic request metadata.
