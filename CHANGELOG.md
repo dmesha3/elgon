@@ -2,6 +2,39 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.2.3] - 2026-03-21
+
+### Added
+
+- Package-level documentation (`doc.go`) for improved discoverability on pkg.go.dev
+- Usage examples (`example_test.go`) to showcase framework capabilities
+- Go reference badge in README for easier navigation to package documentation
+
+### Improved
+
+- Enhanced public API documentation with descriptive comments on exported types and functions
+- Better pkg.go.dev rendering with structured examples and package overview
+
+### Notes
+
+- This release does not introduce breaking changes
+- Recommended upgrade for improved developer experience and documentation visibility
+
+## [0.2.2] - 2026-03-21
+
+### Changed ⚠️
+
+- **Module path updated (breaking change):**
+  - from: `github.com/meshackkazimoto/elgon`
+  - to:   `github.com/dmesha3/elgon`
+
+### Migration
+
+- Update all imports:
+
+```go
+import "github.com/dmesha3/elgon"
+
 ## [0.2.1] - 2026-02-28
 
 ### Added
