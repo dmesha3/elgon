@@ -3,6 +3,7 @@ module github.com/dmesha3/elgon
 go 1.24.1
 
 require (
+	github.com/lmittmann/tint v1.1.3
 	github.com/redis/go-redis/v9 v9.18.0
 	github.com/segmentio/kafka-go v0.4.50
 	golang.org/x/tools v0.42.0
