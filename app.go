@@ -83,8 +83,6 @@ func (a *App) registerDefaultHealthRoutes() {
 		return c.JSON(http.StatusOK, map[string]string{"status": "ok"})
 	}
 	a.GET("/health", health)
-	a.GET("/ready", health)
-	a.GET("/live", health)
 }
 
 func (a *App) SetValidator(v Validator) {
