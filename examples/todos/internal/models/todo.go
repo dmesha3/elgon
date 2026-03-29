@@ -1,10 +1,11 @@
 package models
 
 type Todo struct {
-	ID          string ``
-	Title       string ``
-	Description string ``
-	IsCompleted bool   ``
+	// elgon.BaseModel `elgon:"table:todos,alias:t"`
+	ID          string `elgon:"primary_key"`
+	Title       string `elgon:"not_null"`
+	Description string `elgon:"not_null"`
+	IsCompleted bool   `elgon:"bool"`
 }
 
 type CreateTodoRequest struct {
