@@ -36,8 +36,8 @@ type modelEntity struct {
 
 // GenerateFromModelFiles parses model structs from Go files and writes migration SQL files.
 //
-// Exported struct types become tables. Fields and column options are inferred from `orm` tags
-// using the same rules as orm.BuildCreateTableSQL.
+// Exported struct types become tables. Fields and column options are inferred from `orm` and
+// `elgon` tags using the same rules as orm.BuildCreateTableSQL.
 func GenerateFromModelFiles(dir, dialect, name string, modelFiles []string) (GeneratedMigration, error) {
 	if len(modelFiles) == 0 {
 		return GeneratedMigration{}, fmt.Errorf("migrate: no model files provided")
@@ -171,6 +171,10 @@ func parseModelEntitiesFromFile(path string) ([]modelEntity, error) {
 				continue
 			}
 
+			tableName, err := parseStructTableName(st, ts.Name.Name)
+			if err != nil {
+				return nil, fmt.Errorf("migrate: %s: type %s: %w", path, ts.Name.Name, err)
+			}
 			fields, err := buildReflectFields(st, imports)
 			if err != nil {
 				return nil, fmt.Errorf("migrate: %s: type %s: %w", path, ts.Name.Name, err)
@@ -181,7 +185,7 @@ func parseModelEntitiesFromFile(path string) ([]modelEntity, error) {
 
 			rt := reflect.StructOf(fields)
 			entities = append(entities, modelEntity{
-				Table: toSnakeCase(ts.Name.Name),
+				Table: tableName,
 				Value: reflect.New(rt).Elem().Interface(),
 			})
 		}
@@ -191,6 +195,74 @@ func parseModelEntitiesFromFile(path string) ([]modelEntity, error) {
 		return entities[i].Table < entities[j].Table
 	})
 	return entities, nil
+}
+
+func parseStructTableName(st *ast.StructType, structName string) (string, error) {
+	tableName := ""
+	if st.Fields != nil {
+		for _, field := range st.Fields.List {
+			if field.Tag == nil {
+				continue
+			}
+			raw, err := strconv.Unquote(field.Tag.Value)
+			if err != nil {
+				return "", err
+			}
+			for _, tagName := range []string{"orm", "elgon"} {
+				rawTag := strings.TrimSpace(reflect.StructTag(raw).Get(tagName))
+				if rawTag == "" {
+					continue
+				}
+				tagTable, ok, err := parseTableNameFromTag(rawTag)
+				if err != nil {
+					return "", err
+				}
+				if !ok {
+					continue
+				}
+				if tableName != "" && tableName != tagTable {
+					return "", fmt.Errorf("conflicting table tags %q and %q", tableName, tagTable)
+				}
+				tableName = tagTable
+			}
+		}
+	}
+	if tableName == "" {
+		tableName = toSnakeCase(structName)
+	}
+	return tableName, nil
+}
+
+func parseTableNameFromTag(raw string) (string, bool, error) {
+	tag := strings.TrimSpace(raw)
+	if tag == "" || tag == "-" {
+		return "", false, nil
+	}
+	for _, token := range strings.Split(tag, ",") {
+		token = strings.TrimSpace(token)
+		if token == "" || token == "-" {
+			continue
+		}
+		key, value, hasValue := strings.Cut(token, ":")
+		switch normalizeSchemaTagKey(key) {
+		case "table":
+			if !hasValue || strings.TrimSpace(value) == "" {
+				return "", false, fmt.Errorf("table requires non-empty value")
+			}
+			return strings.TrimSpace(value), true, nil
+		case "alias":
+			if !hasValue || strings.TrimSpace(value) == "" {
+				return "", false, fmt.Errorf("alias requires non-empty value")
+			}
+		}
+	}
+	return "", false, nil
+}
+
+func normalizeSchemaTagKey(key string) string {
+	key = strings.TrimSpace(strings.ToLower(key))
+	replacer := strings.NewReplacer("_", "", "-", "", " ", "")
+	return replacer.Replace(key)
 }
 
 func buildReflectFields(st *ast.StructType, imports map[string]string) ([]reflect.StructField, error) {

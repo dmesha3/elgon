@@ -32,6 +32,30 @@ type schemaFieldOptions struct {
 	unique        bool
 }
 
+func schemaFieldTagRaw(field reflect.StructField) string {
+	if raw := strings.TrimSpace(field.Tag.Get("orm")); raw != "" {
+		return raw
+	}
+	return strings.TrimSpace(field.Tag.Get("elgon"))
+}
+
+func schemaTagRaws(field reflect.StructField) []string {
+	out := make([]string, 0, 2)
+	if raw := strings.TrimSpace(field.Tag.Get("orm")); raw != "" {
+		out = append(out, raw)
+	}
+	if raw := strings.TrimSpace(field.Tag.Get("elgon")); raw != "" && raw != field.Tag.Get("orm") {
+		out = append(out, raw)
+	}
+	return out
+}
+
+func normalizeSchemaTagKey(key string) string {
+	key = strings.TrimSpace(strings.ToLower(key))
+	replacer := strings.NewReplacer("_", "", "-", "", " ", "")
+	return replacer.Replace(key)
+}
+
 // AutoMigrate creates missing tables for the provided entities.
 // It is additive only and does not alter existing columns.
 func (c *Client) AutoMigrate(ctx context.Context, entities ...any) error {
@@ -108,7 +132,7 @@ func buildCreateTableSQL(entity any, dialect, tableOverride string) (string, err
 			continue
 		}
 
-		opts, err := parseSchemaFieldTag(field.Tag.Get("orm"))
+		opts, err := parseSchemaFieldTag(schemaFieldTagRaw(field))
 		if err != nil {
 			return "", fmt.Errorf("%w: field %s: %v", ErrInvalidInput, field.Name, err)
 		}
@@ -159,6 +183,12 @@ func entityStructType(entity any) (reflect.Type, error) {
 }
 
 func entityTableName(entity any, structType reflect.Type) (string, error) {
+	if name, ok, err := entityTableTagName(structType); err != nil {
+		return "", err
+	} else if ok {
+		return name, nil
+	}
+
 	if entity != nil {
 		if namer, ok := entity.(tableNamer); ok {
 			name, err := validIdentifier(strings.TrimSpace(namer.TableName()), "table")
@@ -188,6 +218,62 @@ func entityTableName(entity any, structType reflect.Type) (string, error) {
 	return name, nil
 }
 
+func entityTableTagName(structType reflect.Type) (string, bool, error) {
+	var tableName string
+	for i := 0; i < structType.NumField(); i++ {
+		field := structType.Field(i)
+		for _, raw := range schemaTagRaws(field) {
+			tagTable, ok, err := parseSchemaTableTag(raw)
+			if err != nil {
+				return "", false, fmt.Errorf("%w: field %s: %v", ErrInvalidInput, field.Name, err)
+			}
+			if !ok {
+				continue
+			}
+			if tableName != "" && tableName != tagTable {
+				return "", false, fmt.Errorf("%w: conflicting table tags %q and %q", ErrInvalidInput, tableName, tagTable)
+			}
+			tableName = tagTable
+		}
+	}
+	if tableName == "" {
+		return "", false, nil
+	}
+	validName, err := validIdentifier(tableName, "table")
+	if err != nil {
+		return "", false, err
+	}
+	return validName, true, nil
+}
+
+func parseSchemaTableTag(raw string) (string, bool, error) {
+	tag := strings.TrimSpace(raw)
+	if tag == "" || tag == "-" {
+		return "", false, nil
+	}
+
+	for _, token := range strings.Split(tag, ",") {
+		token = strings.TrimSpace(token)
+		if token == "" || token == "-" {
+			continue
+		}
+		key, value, hasValue := strings.Cut(token, ":")
+		switch normalizeSchemaTagKey(key) {
+		case "table":
+			if !hasValue || strings.TrimSpace(value) == "" {
+				return "", false, fmt.Errorf("table requires non-empty value")
+			}
+			return strings.TrimSpace(value), true, nil
+		case "alias":
+			if !hasValue || strings.TrimSpace(value) == "" {
+				return "", false, fmt.Errorf("alias requires non-empty value")
+			}
+		}
+	}
+
+	return "", false, nil
+}
+
 func parseSchemaFieldTag(raw string) (schemaFieldOptions, error) {
 	opts := schemaFieldOptions{size: -1}
 	tag := strings.TrimSpace(raw)
@@ -210,7 +296,7 @@ func parseSchemaFieldTag(raw string) (schemaFieldOptions, error) {
 		}
 
 		key, value, hasValue := strings.Cut(token, ":")
-		switch strings.ToLower(strings.TrimSpace(key)) {
+		switch normalizeSchemaTagKey(key) {
 		case "column":
 			if !hasValue || strings.TrimSpace(value) == "" {
 				return opts, fmt.Errorf("column requires non-empty value")
@@ -243,8 +329,22 @@ func parseSchemaFieldTag(raw string) (schemaFieldOptions, error) {
 			opts.notNull = true
 		case "unique":
 			opts.unique = true
+		case "bool", "boolean":
+			opts.sqlType = "BOOLEAN"
+		case "text":
+			opts.sqlType = "TEXT"
+		case "blob":
+			opts.sqlType = "BLOB"
+		case "int", "integer":
+			opts.sqlType = "INTEGER"
+		case "bigint":
+			opts.sqlType = "BIGINT"
+		case "real", "float":
+			opts.sqlType = "REAL"
+		case "timestamp", "datetime":
+			opts.sqlType = "TIMESTAMP"
 		default:
-			return opts, fmt.Errorf("unknown orm tag option %q", key)
+			return opts, fmt.Errorf("unknown schema tag option %q", key)
 		}
 	}
 

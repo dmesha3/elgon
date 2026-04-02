@@ -25,6 +25,17 @@ type autoLog struct {
 	Message string `orm:"notnull"`
 }
 
+type schemaMeta struct{}
+
+type elgonTodo struct {
+	schemaMeta   `elgon:"table:todos,alias:t"`
+	ID           string `elgon:"primary_key"`
+	Title        string `elgon:"not_null,text"`
+	IsCompleted  bool   `elgon:"bool"`
+	Description  string `elgon:"not_null"`
+	OptionalNote *string
+}
+
 type badEntity struct {
 	Meta struct {
 		Key string
@@ -55,6 +66,17 @@ func TestBuildCreateTableSQLPostgresAutoIncrement(t *testing.T) {
 	}
 	if !strings.Contains(stmt, "id BIGSERIAL PRIMARY KEY NOT NULL") {
 		t.Fatalf("expected BIGSERIAL pk for postgres, got %s", stmt)
+	}
+}
+
+func TestBuildCreateTableSQLElgonTags(t *testing.T) {
+	stmt, err := BuildCreateTableSQL(elgonTodo{}, "sqlite")
+	if err != nil {
+		t.Fatalf("build create table sql failed: %v", err)
+	}
+	want := "CREATE TABLE IF NOT EXISTS todos (id TEXT PRIMARY KEY NOT NULL, title TEXT NOT NULL, is_completed BOOLEAN, description TEXT NOT NULL, optional_note TEXT)"
+	if stmt != want {
+		t.Fatalf("unexpected elgon create statement:\nwant: %s\ngot:  %s", want, stmt)
 	}
 }
 

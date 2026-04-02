@@ -47,19 +47,21 @@ Optional ORM layer built on top of `db.Adapter`.
 `AutoMigrate` maps exported struct fields to SQL columns and executes `CREATE TABLE IF NOT EXISTS`.
 It is additive only (it does not alter or drop existing columns).
 
-Supported `orm` tag options:
+Supported schema tag options on either `orm:"..."` or `elgon:"..."`:
 
 - `column:<name>`
 - `type:<sql type>`
-- `pk` or `primaryKey`
-- `autoincrement`
-- `notnull`
+- `pk`, `primaryKey`, or `primary_key`
+- `autoincrement` or `auto_increment`
+- `notnull` or `not_null`
 - `unique`
 - `default:<expression>`
 - `size:<n>` (for strings -> `VARCHAR(n)`)
+- shorthand types: `text`, `bool`, `integer`, `bigint`, `real`, `blob`, `timestamp`
 - `-` (ignore field)
 
 Table naming:
 
 - Default: snake_case struct name (example `UserProfile` -> `user_profile`)
+- Tag override: `elgon:"table:todos"` or `orm:"table:todos"` on any struct field
 - Override: implement `TableName() string` on the entity
